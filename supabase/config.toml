@@ -1,0 +1,13 @@
+project_id = "mioqbrpfznxxnbvznpfm"
+
+[functions.create-wallet]
+verify_jwt = false
+
+[functions.send-payment]
+verify_jwt = false
+
+[functions.create-escrow]
+verify_jwt = false
+
+[functions.release-escrow]
+verify_jwt = false
