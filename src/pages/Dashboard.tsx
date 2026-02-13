@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { DashboardLayout } from "@/components/DashboardLayout";
@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { getBalance, fundWithFriendbot } from "@/lib/stellar";
 import { supabase } from "@/integrations/supabase/client";
-import { Send, Download, ArrowLeftRight, Shield, RefreshCw, Wallet, ExternalLink } from "lucide-react";
+import { Send, Download, ArrowLeftRight, Shield, RefreshCw, Wallet, Bell } from "lucide-react";
 import { toast } from "sonner";
 
 interface BalanceItem {
@@ -21,7 +21,7 @@ const Dashboard = () => {
   const [funding, setFunding] = useState(false);
   const [walletCreating, setWalletCreating] = useState(false);
 
-  const fetchBalances = async () => {
+  const fetchBalances = useCallback(async () => {
     if (!profile?.stellar_public_key) return;
     setLoadingBalance(true);
     try {
@@ -31,17 +31,53 @@ const Dashboard = () => {
       setBalances([]);
     }
     setLoadingBalance(false);
-  };
+  }, [profile?.stellar_public_key]);
 
   useEffect(() => {
     fetchBalances();
-  }, [profile?.stellar_public_key]);
+  }, [fetchBalances]);
+
+  // Real-time transaction notifications
+  useEffect(() => {
+    if (!profile?.user_id) return;
+
+    const channel = supabase
+      .channel("dashboard-transactions")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "transactions",
+        },
+        (payload) => {
+          const tx = payload.new as any;
+          if (tx.receiver_id === profile.user_id) {
+            toast.info(`Received ${tx.amount} ${tx.asset}`, {
+              description: tx.memo || "New incoming payment",
+              icon: <Bell className="h-4 w-4" />,
+            });
+            // Auto-refresh balance on incoming tx
+            fetchBalances();
+          } else if (tx.sender_id === profile.user_id) {
+            // Refresh balance after sending
+            fetchBalances();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [profile?.user_id, fetchBalances]);
 
   const handleCreateWallet = async () => {
     setWalletCreating(true);
     try {
       const { data, error } = await supabase.functions.invoke("create-wallet");
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
       toast.success("Stellar wallet created!");
       await refreshProfile();
     } catch (err: any) {
