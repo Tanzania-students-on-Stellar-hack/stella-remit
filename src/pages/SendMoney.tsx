@@ -24,21 +24,24 @@ const SendMoney = () => {
   const [memo, setMemo] = useState("");
   const [loading, setLoading] = useState(false);
   const [txHash, setTxHash] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrors({});
     if (!profile?.stellar_public_key) {
       toast.error("Please create a wallet first");
       return;
     }
 
-    try {
-      sendSchema.parse({ recipient, amount, memo });
-    } catch (err: any) {
-      if (err instanceof z.ZodError) {
-        toast.error(err.errors[0].message);
-        return;
-      }
+    const parsed = sendSchema.safeParse({ recipient, amount, memo });
+    if (!parsed.success) {
+      const fieldErrors: Record<string, string> = {};
+      parsed.error.errors.forEach((err) => {
+        fieldErrors[err.path[0] as string] = err.message;
+      });
+      setErrors(fieldErrors);
+      return;
     }
 
     setLoading(true);
@@ -109,11 +112,13 @@ const SendMoney = () => {
                 <Label>Recipient Address</Label>
                 <Input
                   value={recipient}
-                  onChange={(e) => setRecipient(e.target.value)}
+                  onChange={(e) => { setRecipient(e.target.value); setErrors({}); }}
                   placeholder="G... (Stellar public key)"
                   required
                   maxLength={256}
+                  className={errors.recipient ? "border-destructive" : ""}
                 />
+                {errors.recipient && <p className="text-xs text-destructive">{errors.recipient}</p>}
               </div>
               <div className="space-y-2">
                 <Label>Amount (XLM)</Label>
@@ -122,19 +127,23 @@ const SendMoney = () => {
                   step="0.01"
                   min="0.01"
                   value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
+                  onChange={(e) => { setAmount(e.target.value); setErrors({}); }}
                   placeholder="100.00"
                   required
+                  className={errors.amount ? "border-destructive" : ""}
                 />
+                {errors.amount && <p className="text-xs text-destructive">{errors.amount}</p>}
               </div>
               <div className="space-y-2">
                 <Label>Memo (optional)</Label>
                 <Input
                   value={memo}
-                  onChange={(e) => setMemo(e.target.value)}
+                  onChange={(e) => { setMemo(e.target.value); setErrors({}); }}
                   placeholder="e.g., Tuition payment"
                   maxLength={28}
+                  className={errors.memo ? "border-destructive" : ""}
                 />
+                {errors.memo && <p className="text-xs text-destructive">{errors.memo}</p>}
               </div>
               <Button type="submit" className="w-full" disabled={loading || !profile?.stellar_public_key}>
                 {loading ? "Sending..." : "Send Payment"}

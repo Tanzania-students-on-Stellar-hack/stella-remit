@@ -9,6 +9,7 @@ interface Profile {
   display_name: string;
   email: string;
   stellar_public_key: string | null;
+  created_at: string;
 }
 
 interface AuthContextType {

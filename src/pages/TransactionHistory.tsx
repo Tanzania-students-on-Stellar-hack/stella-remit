@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { txExplorerUrl } from "@/lib/stellar";
-import { History, ExternalLink, ArrowUpRight, ArrowDownLeft, RefreshCw } from "lucide-react";
+import { History, ExternalLink, ArrowUpRight, ArrowDownLeft, RefreshCw, Filter } from "lucide-react";
 import { format } from "date-fns";
 
 interface Transaction {
@@ -20,25 +23,62 @@ interface Transaction {
   created_at: string;
 }
 
+type DirectionFilter = "all" | "sent" | "received";
+type StatusFilter = "all" | "completed" | "pending" | "failed";
+
 const TransactionHistory = () => {
   const { user } = useAuth();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [direction, setDirection] = useState<DirectionFilter>("all");
+  const [status, setStatus] = useState<StatusFilter>("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   const fetchTransactions = async () => {
     setLoading(true);
-    const { data } = await supabase
+    let query = supabase
       .from("transactions")
       .select("*")
       .order("created_at", { ascending: false })
       .limit(50);
+
+    if (direction === "sent" && user?.id) {
+      query = query.eq("sender_id", user.id);
+    } else if (direction === "received" && user?.id) {
+      query = query.eq("receiver_id", user.id);
+    }
+
+    if (status !== "all") {
+      query = query.eq("status", status);
+    }
+
+    if (dateFrom) {
+      query = query.gte("created_at", new Date(dateFrom).toISOString());
+    }
+    if (dateTo) {
+      const end = new Date(dateTo);
+      end.setHours(23, 59, 59, 999);
+      query = query.lte("created_at", end.toISOString());
+    }
+
+    const { data } = await query;
     setTransactions((data as Transaction[]) || []);
     setLoading(false);
   };
 
   useEffect(() => {
     fetchTransactions();
-  }, []);
+  }, [direction, status, dateFrom, dateTo]);
+
+  const clearFilters = () => {
+    setDirection("all");
+    setStatus("all");
+    setDateFrom("");
+    setDateTo("");
+  };
+
+  const hasFilters = direction !== "all" || status !== "all" || dateFrom || dateTo;
 
   return (
     <DashboardLayout>
@@ -50,6 +90,68 @@ const TransactionHistory = () => {
           </Button>
         </div>
 
+        {/* Filters */}
+        <Card className="mb-4">
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium font-sans">Filters</span>
+              {hasFilters && (
+                <Button variant="ghost" size="sm" onClick={clearFilters} className="ml-auto text-xs">
+                  Clear All
+                </Button>
+              )}
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Direction</Label>
+                <Select value={direction} onValueChange={(v) => setDirection(v as DirectionFilter)}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="sent">Sent</SelectItem>
+                    <SelectItem value="received">Received</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Status</Label>
+                <Select value={status} onValueChange={(v) => setStatus(v as StatusFilter)}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="failed">Failed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">From</Label>
+                <Input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">To</Label>
+                <Input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="h-8 text-xs"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardContent className="p-0">
             {loading ? (
@@ -57,7 +159,7 @@ const TransactionHistory = () => {
             ) : transactions.length === 0 ? (
               <div className="py-12 text-center text-muted-foreground">
                 <History className="h-10 w-10 mx-auto mb-3 opacity-50" />
-                <p>No transactions yet</p>
+                <p>{hasFilters ? "No transactions match your filters" : "No transactions yet"}</p>
               </div>
             ) : (
               <div className="divide-y divide-border">

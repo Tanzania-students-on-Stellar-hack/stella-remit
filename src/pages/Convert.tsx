@@ -10,17 +10,24 @@ import { getBalance } from "@/lib/stellar";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeftRight, ArrowDown, RefreshCw, Info } from "lucide-react";
 import { toast } from "sonner";
+import { z } from "zod";
 
 const ASSETS = [
   { code: "XLM", label: "Stellar Lumens (XLM)" },
   { code: "USDC", label: "Test USDC" },
 ];
 
-// Simulated exchange rate for testnet demo
 const EXCHANGE_RATES: Record<string, Record<string, number>> = {
   XLM: { USDC: 0.12, XLM: 1 },
   USDC: { XLM: 8.33, USDC: 1 },
 };
+
+const convertSchema = z.object({
+  amount: z
+    .string()
+    .min(1, "Amount is required")
+    .refine((v) => !isNaN(parseFloat(v)) && parseFloat(v) > 0, "Amount must be greater than 0"),
+});
 
 const Convert = () => {
   const { profile } = useAuth();
@@ -29,6 +36,7 @@ const Convert = () => {
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
   const [balances, setBalances] = useState<{ asset: string; balance: string }[]>([]);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (profile?.stellar_public_key) {
@@ -37,34 +45,42 @@ const Convert = () => {
   }, [profile?.stellar_public_key]);
 
   const rate = EXCHANGE_RATES[fromAsset]?.[toAsset] ?? 0;
-  const convertedAmount = amount ? (parseFloat(amount) * rate).toFixed(4) : "0.0000";
+  const convertedAmount = amount && !isNaN(parseFloat(amount)) ? (parseFloat(amount) * rate).toFixed(4) : "0.0000";
   const fromBalance = balances.find((b) => b.asset === fromAsset)?.balance || "0";
 
   const handleSwapDirection = () => {
     setFromAsset(toAsset);
     setToAsset(fromAsset);
     setAmount("");
+    setErrors({});
   };
 
   const handleConvert = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrors({});
+
     if (!profile?.stellar_public_key) {
       toast.error("Please create a wallet first");
       return;
     }
-    if (!amount || parseFloat(amount) <= 0) {
-      toast.error("Enter a valid amount");
+
+    const parsed = convertSchema.safeParse({ amount });
+    if (!parsed.success) {
+      const fieldErrors: Record<string, string> = {};
+      parsed.error.errors.forEach((err) => {
+        fieldErrors[err.path[0] as string] = err.message;
+      });
+      setErrors(fieldErrors);
       return;
     }
+
     if (parseFloat(amount) > parseFloat(fromBalance)) {
-      toast.error("Insufficient balance");
+      setErrors({ amount: "Insufficient balance" });
       return;
     }
 
     setLoading(true);
     try {
-      // On testnet, we simulate conversion by recording a transaction
-      // In production, this would use Stellar DEX path payments
       const { error } = await supabase.from("transactions").insert({
         sender_id: profile.user_id || "",
         receiver_id: profile.user_id || "",
@@ -78,7 +94,6 @@ const Convert = () => {
       if (error) throw error;
       toast.success(`Converted ${amount} ${fromAsset} to ${convertedAmount} ${toAsset}`);
       setAmount("");
-      // Refresh balances
       const b = await getBalance(profile.stellar_public_key);
       setBalances(b);
     } catch (err: any) {
@@ -105,7 +120,7 @@ const Convert = () => {
               <div className="space-y-2">
                 <Label>From</Label>
                 <div className="flex gap-3">
-                  <Select value={fromAsset} onValueChange={(v) => { setFromAsset(v); if (v === toAsset) setToAsset(fromAsset); }}>
+                  <Select value={fromAsset} onValueChange={(v) => { setFromAsset(v); if (v === toAsset) setToAsset(fromAsset); setErrors({}); }}>
                     <SelectTrigger className="w-[140px]">
                       <SelectValue />
                     </SelectTrigger>
@@ -115,15 +130,20 @@ const Convert = () => {
                       ))}
                     </SelectContent>
                   </Select>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    placeholder="0.00"
-                    className="flex-1"
-                  />
+                  <div className="flex-1">
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      value={amount}
+                      onChange={(e) => { setAmount(e.target.value); setErrors({}); }}
+                      placeholder="0.00"
+                      className={errors.amount ? "border-destructive" : ""}
+                    />
+                    {errors.amount && (
+                      <p className="text-xs text-destructive mt-1">{errors.amount}</p>
+                    )}
+                  </div>
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Available: {parseFloat(fromBalance).toFixed(2)} {fromAsset}
