@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { getBalance, fundWithFriendbot } from "@/lib/stellar";
 import { supabase } from "@/integrations/supabase/client";
 import { Send, Download, ArrowLeftRight, Shield, RefreshCw, Wallet, Bell } from "lucide-react";
+import { RecentTransactions } from "@/components/RecentTransactions";
 import { toast } from "sonner";
 
 interface BalanceItem {
@@ -196,6 +197,9 @@ const Dashboard = () => {
                 </Link>
               ))}
             </div>
+
+            {/* Recent Transactions */}
+            <RecentTransactions />
 
             {/* Wallet Info */}
             <Card>
