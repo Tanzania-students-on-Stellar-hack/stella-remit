@@ -1,12 +1,14 @@
 import { useState } from "react";
+import { useTheme } from "next-themes";
 import { useAuth } from "@/contexts/AuthContext";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
-import { Settings as SettingsIcon, User, Wallet, Copy, CheckCircle, RefreshCw } from "lucide-react";
+import { Settings as SettingsIcon, User, Wallet, Copy, CheckCircle, RefreshCw, Moon, Sun } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -20,6 +22,7 @@ const profileSchema = z.object({
 
 const Settings = () => {
   const { profile, refreshProfile } = useAuth();
+  const { theme, setTheme } = useTheme();
   const [displayName, setDisplayName] = useState(profile?.display_name || "");
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -145,6 +148,29 @@ const Settings = () => {
                 No wallet created yet. Go to Dashboard to create one.
               </p>
             )}
+          </CardContent>
+        </Card>
+        {/* Appearance */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="font-sans flex items-center gap-2">
+              {theme === "dark" ? <Moon className="h-5 w-5 text-accent" /> : <Sun className="h-5 w-5 text-accent" />} Appearance
+            </CardTitle>
+            <CardDescription>Toggle between light and dark mode</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Dark Mode</Label>
+                <p className="text-sm text-muted-foreground">
+                  {theme === "dark" ? "Dark theme is active" : "Light theme is active"}
+                </p>
+              </div>
+              <Switch
+                checked={theme === "dark"}
+                onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")}
+              />
+            </div>
           </CardContent>
         </Card>
       </div>
