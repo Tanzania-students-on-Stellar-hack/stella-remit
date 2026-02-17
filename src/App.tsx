@@ -15,6 +15,7 @@ import TransactionHistory from "./pages/TransactionHistory";
 import Convert from "./pages/Convert";
 import Escrow from "./pages/Escrow";
 import Settings from "./pages/Settings";
+import Help from "./pages/Help";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -37,6 +38,7 @@ const App = () => (
               <Route path="/convert" element={<ProtectedRoute><Convert /></ProtectedRoute>} />
               <Route path="/escrow" element={<ProtectedRoute><Escrow /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+              <Route path="/help" element={<ProtectedRoute><Help /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </AuthProvider>

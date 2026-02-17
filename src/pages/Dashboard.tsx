@@ -8,6 +8,7 @@ import { getBalance, fundWithFriendbot } from "@/lib/stellar";
 import { supabase } from "@/integrations/supabase/client";
 import { Send, Download, ArrowLeftRight, Shield, RefreshCw, Wallet, Bell } from "lucide-react";
 import { RecentTransactions } from "@/components/RecentTransactions";
+import { OnboardingTutorial } from "@/components/OnboardingTutorial";
 import { toast } from "sonner";
 
 interface BalanceItem {
@@ -21,6 +22,14 @@ const Dashboard = () => {
   const [loadingBalance, setLoadingBalance] = useState(false);
   const [funding, setFunding] = useState(false);
   const [walletCreating, setWalletCreating] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    return localStorage.getItem("stellarremit_onboarding_done") !== "true";
+  });
+
+  const completeOnboarding = () => {
+    localStorage.setItem("stellarremit_onboarding_done", "true");
+    setShowOnboarding(false);
+  };
 
   const fetchBalances = useCallback(async () => {
     if (!profile?.stellar_public_key) return;
@@ -111,6 +120,11 @@ const Dashboard = () => {
             Welcome back, {profile?.display_name || "User"}
           </p>
         </div>
+
+        {/* Onboarding Tutorial */}
+        {showOnboarding && (
+          <OnboardingTutorial onComplete={completeOnboarding} />
+        )}
 
         {/* Wallet Status */}
         {!profile?.stellar_public_key ? (
