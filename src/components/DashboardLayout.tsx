@@ -3,7 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import {
   Globe, LayoutDashboard, Send, Download, History,
-  ArrowLeftRight, Shield, LogOut, User, Settings,
+  ArrowLeftRight, Shield, LogOut, User, Settings, HelpCircle,
 } from "lucide-react";
 
 const navItems = [
@@ -14,6 +14,7 @@ const navItems = [
   { to: "/convert", label: "Convert", icon: ArrowLeftRight },
   { to: "/escrow", label: "Escrow", icon: Shield },
   { to: "/settings", label: "Settings", icon: Settings },
+  { to: "/help", label: "Help", icon: HelpCircle },
 ];
 
 export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
