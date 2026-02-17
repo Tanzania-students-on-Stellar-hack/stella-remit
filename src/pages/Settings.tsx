@@ -104,7 +104,7 @@ const Settings = () => {
             <CardTitle className="font-sans flex items-center gap-2">
               <Wallet className="h-5 w-5 text-accent" /> Wallet Details
             </CardTitle>
-            <CardDescription>Your Stellar testnet wallet information</CardDescription>
+            <CardDescription>Your Stellar wallet information</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {profile?.stellar_public_key ? (
@@ -132,7 +132,7 @@ const Settings = () => {
                 </div>
                 <div className="space-y-2">
                   <Label>Network</Label>
-                  <p className="text-sm text-muted-foreground">Stellar Testnet</p>
+                  <p className="text-sm text-muted-foreground">Stellar Mainnet (Public)</p>
                 </div>
                 <div className="space-y-2">
                   <Label>Account Created</Label>

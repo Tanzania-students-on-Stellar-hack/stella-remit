@@ -4,9 +4,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { getBalance, fundWithFriendbot } from "@/lib/stellar";
+import { getBalance } from "@/lib/stellar";
 import { supabase } from "@/integrations/supabase/client";
-import { Send, Download, ArrowLeftRight, Shield, RefreshCw, Wallet, Bell } from "lucide-react";
+import { Send, Download, ArrowLeftRight, Shield, RefreshCw, Wallet, Bell, AlertTriangle } from "lucide-react";
 import { RecentTransactions } from "@/components/RecentTransactions";
 import { OnboardingTutorial } from "@/components/OnboardingTutorial";
 import { toast } from "sonner";
@@ -20,7 +20,6 @@ const Dashboard = () => {
   const { profile, refreshProfile } = useAuth();
   const [balances, setBalances] = useState<BalanceItem[]>([]);
   const [loadingBalance, setLoadingBalance] = useState(false);
-  const [funding, setFunding] = useState(false);
   const [walletCreating, setWalletCreating] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(() => {
     return localStorage.getItem("stellarremit_onboarding_done") !== "true";
@@ -96,19 +95,6 @@ const Dashboard = () => {
     setWalletCreating(false);
   };
 
-  const handleFund = async () => {
-    if (!profile?.stellar_public_key) return;
-    setFunding(true);
-    try {
-      await fundWithFriendbot(profile.stellar_public_key);
-      toast.success("Account funded with 10,000 testnet XLM!");
-      await fetchBalances();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to fund account");
-    }
-    setFunding(false);
-  };
-
   const xlmBalance = balances.find((b) => b.asset === "XLM")?.balance || "0";
 
   return (
@@ -125,6 +111,18 @@ const Dashboard = () => {
         {showOnboarding && (
           <OnboardingTutorial onComplete={completeOnboarding} />
         )}
+
+        {/* Mainnet Warning */}
+        <Card className="border-warning/40 bg-warning/5">
+          <CardContent className="py-4">
+            <div className="flex items-start gap-2 text-sm">
+              <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
+              <p className="text-foreground">
+                <strong>Live Network:</strong> You are on the Stellar Mainnet. All transactions use real XLM and are irreversible. Double-check addresses and amounts before sending.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Wallet Status */}
         {!profile?.stellar_public_key ? (
@@ -154,7 +152,7 @@ const Dashboard = () => {
                   <div className="text-3xl font-bold font-sans">
                     {loadingBalance ? "..." : parseFloat(xlmBalance).toFixed(2)}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">Stellar Lumens (Testnet)</p>
+                  <p className="text-xs text-muted-foreground mt-1">Stellar Lumens (Mainnet)</p>
                 </CardContent>
               </Card>
               {balances
@@ -170,7 +168,7 @@ const Dashboard = () => {
                       <div className="text-3xl font-bold font-sans">
                         {parseFloat(b.balance).toFixed(2)}
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1">Testnet Asset</p>
+                      <p className="text-xs text-muted-foreground mt-1">Stellar Asset</p>
                     </CardContent>
                   </Card>
                 ))}
@@ -184,9 +182,6 @@ const Dashboard = () => {
                   <Button size="sm" variant="outline" onClick={fetchBalances} disabled={loadingBalance}>
                     <RefreshCw className={`h-3.5 w-3.5 mr-1 ${loadingBalance ? "animate-spin" : ""}`} />
                     Refresh
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={handleFund} disabled={funding}>
-                    {funding ? "Funding..." : "Fund (Testnet)"}
                   </Button>
                 </CardContent>
               </Card>

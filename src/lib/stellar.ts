@@ -1,7 +1,7 @@
 import * as StellarSdk from "@stellar/stellar-sdk";
 
-const HORIZON_URL = "https://horizon-testnet.stellar.org";
-const NETWORK_PASSPHRASE = StellarSdk.Networks.TESTNET;
+const HORIZON_URL = "https://horizon.stellar.org";
+const NETWORK_PASSPHRASE = StellarSdk.Networks.PUBLIC;
 
 export const server = new StellarSdk.Horizon.Server(HORIZON_URL);
 
@@ -35,14 +35,6 @@ export const getTransactionHistory = async (publicKey: string) => {
   }
 };
 
-export const fundWithFriendbot = async (publicKey: string) => {
-  const response = await fetch(
-    `https://friendbot.stellar.org?addr=${encodeURIComponent(publicKey)}`
-  );
-  if (!response.ok) throw new Error("Failed to fund account");
-  return response.json();
-};
-
-export const EXPLORER_URL = "https://stellar.expert/explorer/testnet";
+export const EXPLORER_URL = "https://stellar.expert/explorer/public";
 export const txExplorerUrl = (hash: string) => `${EXPLORER_URL}/tx/${hash}`;
 export const accountExplorerUrl = (key: string) => `${EXPLORER_URL}/account/${key}`;

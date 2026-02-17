@@ -31,7 +31,6 @@ serve(async (req) => {
     if (parseFloat(amount) <= 0) throw new Error("Amount must be positive");
     if (memo && memo.length > 28) throw new Error("Memo too long");
 
-    // Get sender's secret key
     const { data: secretData } = await supabase
       .from("stellar_secrets")
       .select("encrypted_secret")
@@ -41,13 +40,13 @@ serve(async (req) => {
     if (!secretData) throw new Error("Wallet not found. Please create a wallet first.");
 
     const senderKeypair = StellarSdk.Keypair.fromSecret(secretData.encrypted_secret);
-    const server = new StellarSdk.Horizon.Server("https://horizon-testnet.stellar.org");
+    const server = new StellarSdk.Horizon.Server("https://horizon.stellar.org");
 
     const account = await server.loadAccount(senderKeypair.publicKey());
 
     const txBuilder = new StellarSdk.TransactionBuilder(account, {
       fee: StellarSdk.BASE_FEE,
-      networkPassphrase: StellarSdk.Networks.TESTNET,
+      networkPassphrase: StellarSdk.Networks.PUBLIC,
     });
 
     txBuilder.addOperation(
@@ -68,8 +67,6 @@ serve(async (req) => {
 
     const result = await server.submitTransaction(tx);
 
-    // Record transaction in database
-    // Look up receiver profile by stellar key
     const { data: receiverProfile } = await supabase
       .from("profiles")
       .select("user_id")

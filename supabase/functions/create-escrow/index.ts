@@ -30,7 +30,6 @@ serve(async (req) => {
     if (!recipient_address || !amount || !deadline) throw new Error("Missing required fields");
     if (parseFloat(amount) <= 0) throw new Error("Amount must be positive");
 
-    // Get creator's secret key
     const { data: secretData } = await supabase
       .from("stellar_secrets")
       .select("encrypted_secret")
@@ -41,31 +40,28 @@ serve(async (req) => {
 
     const creatorKeypair = StellarSdk.Keypair.fromSecret(secretData.encrypted_secret);
 
-    // Create escrow account (a new keypair that will hold the funds)
+    // Create escrow keypair — on mainnet, the creator funds it via create_account
     const escrowKeypair = StellarSdk.Keypair.random();
-    const server = new StellarSdk.Horizon.Server("https://horizon-testnet.stellar.org");
+    const server = new StellarSdk.Horizon.Server("https://horizon.stellar.org");
 
-    // Fund escrow account
-    const fundRes = await fetch(`https://friendbot.stellar.org?addr=${encodeURIComponent(escrowKeypair.publicKey())}`);
-    if (!fundRes.ok) throw new Error("Failed to create escrow account");
-
-    // Transfer funds to escrow
+    // Create and fund the escrow account with the deposit amount + minimum balance (1.5 XLM reserve)
     const creatorAccount = await server.loadAccount(creatorKeypair.publicKey());
-    const payTx = new StellarSdk.TransactionBuilder(creatorAccount, {
+    const escrowFundAmount = (parseFloat(amount) + 2).toFixed(7); // extra for base reserve + fees
+
+    const createTx = new StellarSdk.TransactionBuilder(creatorAccount, {
       fee: StellarSdk.BASE_FEE,
-      networkPassphrase: StellarSdk.Networks.TESTNET,
+      networkPassphrase: StellarSdk.Networks.PUBLIC,
     })
-      .addOperation(StellarSdk.Operation.payment({
+      .addOperation(StellarSdk.Operation.createAccount({
         destination: escrowKeypair.publicKey(),
-        asset: StellarSdk.Asset.native(),
-        amount: String(amount),
+        startingBalance: escrowFundAmount,
       }))
       .addMemo(StellarSdk.Memo.text("Escrow deposit"))
       .setTimeout(30)
       .build();
 
-    payTx.sign(creatorKeypair);
-    const payResult = await server.submitTransaction(payTx);
+    createTx.sign(creatorKeypair);
+    const payResult = await server.submitTransaction(createTx);
 
     // Look up recipient
     const { data: recipientProfile } = await supabase

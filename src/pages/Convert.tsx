@@ -112,7 +112,7 @@ const Convert = () => {
             <CardTitle className="font-sans flex items-center gap-2">
               <ArrowLeftRight className="h-5 w-5 text-accent" /> Swap Assets
             </CardTitle>
-            <CardDescription>Convert between XLM and test stablecoins</CardDescription>
+            <CardDescription>Convert between XLM and stablecoins</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleConvert} className="space-y-4">
@@ -182,7 +182,7 @@ const Convert = () => {
               {/* Rate info */}
               <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 px-3 py-2 rounded-md">
                 <Info className="h-3.5 w-3.5" />
-                <span>1 {fromAsset} ≈ {rate} {toAsset} (simulated testnet rate)</span>
+                <span>1 {fromAsset} ≈ {rate} {toAsset} (simulated rate)</span>
               </div>
 
               <Button type="submit" className="w-full" disabled={loading || !profile?.stellar_public_key || fromAsset === toAsset}>
@@ -201,8 +201,9 @@ const Convert = () => {
             <div className="flex items-start gap-2 text-xs text-muted-foreground">
               <Info className="h-4 w-4 mt-0.5 shrink-0" />
               <p>
-                This is a testnet demonstration. In production, conversions would use Stellar's built-in
-                decentralized exchange (SDEX) with real market rates and path payments for optimal pricing.
+                <strong>Mainnet:</strong> Conversions currently use simulated rates. In a future update,
+                this will use Stellar's decentralized exchange (SDEX) with real market rates and path
+                payments for optimal pricing. Real XLM is involved — proceed with caution.
               </p>
             </div>
           </CardContent>

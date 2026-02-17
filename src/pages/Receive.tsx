@@ -2,15 +2,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Copy, Download, ExternalLink } from "lucide-react";
+import { Copy, Download, ExternalLink, AlertTriangle } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
-import { accountExplorerUrl, fundWithFriendbot } from "@/lib/stellar";
-import { useState } from "react";
+import { accountExplorerUrl } from "@/lib/stellar";
 
 const Receive = () => {
   const { profile } = useAuth();
-  const [funding, setFunding] = useState(false);
   const publicKey = profile?.stellar_public_key;
 
   const copyAddress = () => {
@@ -18,18 +16,6 @@ const Receive = () => {
       navigator.clipboard.writeText(publicKey);
       toast.success("Address copied!");
     }
-  };
-
-  const handleFund = async () => {
-    if (!publicKey) return;
-    setFunding(true);
-    try {
-      await fundWithFriendbot(publicKey);
-      toast.success("Account funded with testnet XLM!");
-    } catch {
-      toast.error("Failed to fund account");
-    }
-    setFunding(false);
   };
 
   return (
@@ -45,6 +31,18 @@ const Receive = () => {
           </Card>
         ) : (
           <div className="space-y-4">
+            <Card className="border-warning/40 bg-warning/5">
+              <CardContent className="py-4">
+                <div className="flex items-start gap-2 text-sm">
+                  <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
+                  <p className="text-foreground">
+                    <strong>Mainnet Warning:</strong> This is the live Stellar network.
+                    Only send real XLM to this address. Transactions are irreversible.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle className="font-sans flex items-center gap-2">
@@ -71,18 +69,6 @@ const Receive = () => {
                     </a>
                   </Button>
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm font-sans">Fund with Testnet XLM</CardTitle>
-                <CardDescription>Get free testnet XLM from Stellar Friendbot</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button onClick={handleFund} disabled={funding} className="w-full">
-                  {funding ? "Funding..." : "Fund Account (Free Testnet XLM)"}
-                </Button>
               </CardContent>
             </Card>
           </div>

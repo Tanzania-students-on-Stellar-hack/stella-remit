@@ -17,7 +17,6 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Auth
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) throw new Error("No authorization header");
 
@@ -40,14 +39,10 @@ serve(async (req) => {
       );
     }
 
-    // Generate keypair
+    // Generate keypair (mainnet — account must be funded externally with real XLM)
     const keypair = StellarSdk.Keypair.random();
     const publicKey = keypair.publicKey();
     const secretKey = keypair.secret();
-
-    // Fund with friendbot
-    const fundRes = await fetch(`https://friendbot.stellar.org?addr=${encodeURIComponent(publicKey)}`);
-    if (!fundRes.ok) throw new Error("Failed to fund account with friendbot");
 
     // Store public key in profile
     const { error: updateError } = await supabase
@@ -57,17 +52,13 @@ serve(async (req) => {
 
     if (updateError) throw updateError;
 
-    // Store secret key in vault (using a simple approach - store in a secrets table)
-    // For demo, we store encrypted in a separate approach using Supabase vault
-    // For now, store in environment-like storage per user
+    // Store secret key
     const { error: vaultError } = await supabase.rpc("store_stellar_secret", {
       p_user_id: user.id,
       p_secret_key: secretKey,
     });
 
-    // If vault RPC doesn't exist yet, store directly (we'll create the function)
     if (vaultError) {
-      // Fallback: store in a secure table
       await supabase.from("stellar_secrets").upsert({
         user_id: user.id,
         encrypted_secret: secretKey,
