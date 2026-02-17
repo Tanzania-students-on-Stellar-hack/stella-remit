@@ -28,7 +28,6 @@ serve(async (req) => {
     const { escrow_id } = await req.json();
     if (!escrow_id) throw new Error("Missing escrow_id");
 
-    // Get escrow record
     const { data: escrow, error: escrowError } = await supabase
       .from("escrows")
       .select("*")
@@ -39,7 +38,6 @@ serve(async (req) => {
     if (escrow.status !== "pending") throw new Error("Escrow is not pending");
     if (escrow.recipient_id !== user.id) throw new Error("Only recipient can release");
 
-    // Get recipient's stellar key
     const { data: recipientProfile } = await supabase
       .from("profiles")
       .select("stellar_public_key")
@@ -48,7 +46,6 @@ serve(async (req) => {
 
     if (!recipientProfile?.stellar_public_key) throw new Error("Recipient has no wallet");
 
-    // Get escrow account secret
     const { data: escrowSecret } = await supabase
       .from("stellar_secrets")
       .select("encrypted_secret")
@@ -58,14 +55,13 @@ serve(async (req) => {
     if (!escrowSecret) throw new Error("Escrow secret not found");
 
     const escrowKeypair = StellarSdk.Keypair.fromSecret(escrowSecret.encrypted_secret);
-    const server = new StellarSdk.Horizon.Server("https://horizon-testnet.stellar.org");
+    const server = new StellarSdk.Horizon.Server("https://horizon.stellar.org");
 
     const escrowAccount = await server.loadAccount(escrowKeypair.publicKey());
 
-    // Send funds from escrow to recipient
     const releaseTx = new StellarSdk.TransactionBuilder(escrowAccount, {
       fee: StellarSdk.BASE_FEE,
-      networkPassphrase: StellarSdk.Networks.TESTNET,
+      networkPassphrase: StellarSdk.Networks.PUBLIC,
     })
       .addOperation(StellarSdk.Operation.payment({
         destination: recipientProfile.stellar_public_key,
@@ -79,14 +75,12 @@ serve(async (req) => {
     releaseTx.sign(escrowKeypair);
     const result = await server.submitTransaction(releaseTx);
 
-    // Update escrow status
     const txHashes = [...(escrow.tx_hashes || []), result.hash];
     await supabase
       .from("escrows")
       .update({ status: "released", tx_hashes: txHashes })
       .eq("id", escrow_id);
 
-    // Record transaction
     await supabase.from("transactions").insert({
       sender_id: escrow.creator_id,
       receiver_id: escrow.recipient_id,

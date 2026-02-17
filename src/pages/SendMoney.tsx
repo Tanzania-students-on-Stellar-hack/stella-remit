@@ -104,7 +104,7 @@ const SendMoney = () => {
             <CardTitle className="font-sans flex items-center gap-2">
               <Send className="h-5 w-5 text-accent" /> Transfer Funds
             </CardTitle>
-            <CardDescription>Send XLM to any Stellar address</CardDescription>
+            <CardDescription>Send XLM to any Stellar address (Mainnet — real funds)</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSend} className="space-y-4">
