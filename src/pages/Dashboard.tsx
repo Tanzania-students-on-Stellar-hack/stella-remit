@@ -9,6 +9,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Send, Download, ArrowLeftRight, Shield, RefreshCw, Wallet, Bell, AlertTriangle } from "lucide-react";
 import { RecentTransactions } from "@/components/RecentTransactions";
 import { OnboardingTutorial } from "@/components/OnboardingTutorial";
+import { ImportWalletDialog } from "@/components/ImportWalletDialog";
+import { FundingGuide } from "@/components/FundingGuide";
 import { toast } from "sonner";
 
 interface BalanceItem {
@@ -133,9 +135,12 @@ const Dashboard = () => {
               <p className="text-muted-foreground mb-4 max-w-md mx-auto">
                 You need a Stellar wallet to send and receive money. We'll create one securely for you.
               </p>
-              <Button onClick={handleCreateWallet} disabled={walletCreating}>
-                {walletCreating ? "Creating..." : "Create Wallet"}
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <Button onClick={handleCreateWallet} disabled={walletCreating}>
+                  {walletCreating ? "Creating..." : "Create New Wallet"}
+                </Button>
+                <ImportWalletDialog />
+              </div>
             </CardContent>
           </Card>
         ) : (
@@ -206,6 +211,9 @@ const Dashboard = () => {
                 </Link>
               ))}
             </div>
+
+            {/* Funding Guide */}
+            <FundingGuide />
 
             {/* Recent Transactions */}
             <RecentTransactions />
