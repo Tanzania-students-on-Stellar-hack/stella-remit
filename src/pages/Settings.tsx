@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Settings as SettingsIcon, User, Wallet, Copy, CheckCircle, RefreshCw, Moon, Sun } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
+import { ImportWalletDialog } from "@/components/ImportWalletDialog";
 
 const profileSchema = z.object({
   display_name: z
@@ -148,6 +149,9 @@ const Settings = () => {
                 No wallet created yet. Go to Dashboard to create one.
               </p>
             )}
+            <div className="pt-2 border-t">
+              <ImportWalletDialog />
+            </div>
           </CardContent>
         </Card>
         {/* Appearance */}
