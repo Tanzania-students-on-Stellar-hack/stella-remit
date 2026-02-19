@@ -9,19 +9,19 @@ const steps = [
     icon: Globe,
     title: "Welcome to StellarRemit",
     description:
-      "StellarRemit lets you send money across borders instantly using the Stellar blockchain testnet. No bank delays, no hidden fees.",
+      "StellarRemit lets you send money across borders instantly using the Stellar blockchain. No bank delays, no hidden fees.",
   },
   {
     icon: Wallet,
-    title: "Create Your Wallet",
+    title: "Set Up Your Wallet",
     description:
-      'Head to the Dashboard and click "Create Wallet." This generates a secure Stellar testnet address for you — your personal gateway to global transfers.',
+      'Create a new Stellar wallet or import an existing one from another app. Your wallet is your gateway to global transfers.',
   },
   {
     icon: Banknote,
     title: "Fund Your Account",
     description:
-      'Click "Fund (Testnet)" on the Dashboard to receive 10,000 free test XLM from the Stellar Friendbot. This is play money for testing.',
+      'Buy XLM from an exchange like Coinbase, Binance, or Kraken, then send it to your wallet address. A minimum of 1 XLM is needed to activate your account.',
   },
   {
     icon: Send,
