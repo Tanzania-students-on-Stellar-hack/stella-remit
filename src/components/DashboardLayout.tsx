@@ -3,16 +3,21 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import {
   Globe, LayoutDashboard, Send, Download, History,
-  ArrowLeftRight, Shield, LogOut, User, Settings, HelpCircle,
+  ArrowLeftRight, Shield, LogOut, User, Settings, HelpCircle, Sparkles,
+  Coins, PiggyBank,
 } from "lucide-react";
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/send", label: "Send Money", icon: Send },
   { to: "/receive", label: "Receive", icon: Download },
+  { to: "/cross-border", label: "Cross-Border", icon: Globe },
+  { to: "/token-issuance", label: "Issue Token", icon: Coins },
+  { to: "/savings-group", label: "Savings Group", icon: PiggyBank },
   { to: "/history", label: "Transactions", icon: History },
   { to: "/convert", label: "Convert", icon: ArrowLeftRight },
   { to: "/escrow", label: "Escrow", icon: Shield },
+  { to: "/soroban-escrow", label: "Smart Escrow", icon: Sparkles },
   { to: "/settings", label: "Settings", icon: Settings },
   { to: "/help", label: "Help", icon: HelpCircle },
 ];

@@ -1,73 +1,234 @@
-# Welcome to your Lovable project
+# 🌟 StellarRemit - Cross-Border Payment Platform
 
-## Project info
+A fintech solution built on Stellar blockchain for fast, low-cost cross-border payments with automatic currency conversion.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+**Built for Stellar Mini-Hackathon 2024**
 
-## How can I edit this code?
+## 🚀 Quick Start
 
-There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+```bash
+npm install
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+Visit: http://localhost:5173
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## 🎯 Features - Covers All 4 Hackathon Project Ideas
 
-**Use GitHub Codespaces**
+### ✅ 1. Cross-Border Payment Prototype
+- Real-time XLM ↔ USDC conversion using path payments
+- Guaranteed recipient amount
+- 2-5 second settlement, <$0.01 fees
+- **Demo at:** `/cross-border`
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+### ✅ 2. Stablecoin/Token Issuance Demo
+- Create custom tokens on Stellar (no smart contract needed)
+- Issue stablecoins, loyalty points, or any asset
+- Automatic distributor account creation
+- **Demo at:** `/token-issuance`
 
-## What technologies are used for this project?
+### ✅ 3. Merchant Payment Solution
+- QR code for receiving payments
+- Simple payment links
+- Transaction tracking
+- **Demo at:** `/receive`
 
-This project is built with:
+### ✅ 4. Savings Group/Microfinance Tool
+- Community savings pools (chamas, ROSCAs)
+- Transparent blockchain tracking
+- Group contribution management
+- **Demo at:** `/savings-group`
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+### 🎁 Bonus Features
+- Traditional escrow (multi-sig) at `/escrow`
+- Soroban smart contract escrow at `/soroban-escrow`
+- Basic XLM transfers at `/send`
+- Wallet management
+- Transaction history
 
-## How can I deploy this project?
+## 📋 Current Status
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+✅ **100% Working:**
+- Cross-border payments with path payments
+- Basic XLM transfers
+- Traditional multi-sig escrow
+- Wallet management
+- Transaction history
 
-## Can I connect a custom domain to my Lovable project?
+⏰ **In Progress:**
+- Soroban CLI upgrading (v22.0.1 → v25.1.0)
+- Takes 15-30 minutes on Windows
+- Contract code ready, deployment script ready
 
-Yes, you can!
+## 🔧 Soroban Deployment (When CLI Ready)
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+**Step 1:** Check if ready
+```powershell
+cd contracts
+.\WAIT_AND_DEPLOY.ps1
+```
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+**Step 2:** Deploy
+```powershell
+.\DEPLOY_NOW.ps1
+```
+
+**Step 3:** Copy contract ID to `src/lib/soroban.ts`:
+```typescript
+export const ESCROW_CONTRACT_ID = "YOUR_CONTRACT_ID_HERE";
+```
+
+Done! Test at `/soroban-escrow`
+
+## 🛠 Tech Stack
+
+**Frontend:** React + TypeScript + TailwindCSS + shadcn/ui  
+**Blockchain:** Stellar SDK + Soroban + Path Payments  
+**Backend:** Supabase  
+**Smart Contracts:** Rust
+
+## 📁 Key Files
+
+```
+src/
+├── pages/
+│   ├── CrossBorderPayment.tsx  # Path payments (main demo)
+│   ├── SendMoney.tsx           # Basic payments
+│   ├── Escrow.tsx              # Multi-sig escrow
+│   └── SorobanEscrow.tsx       # Smart contract escrow
+├── lib/
+│   ├── stellar.ts              # Stellar SDK setup
+│   ├── pathPayments.ts         # Cross-border logic
+│   └── soroban.ts              # Smart contract helpers
+contracts/
+└── escrow/src/lib.rs           # Rust smart contract
+```
+
+## 🎬 Hackathon Demo Script - All 4 Project Ideas
+
+### 1. Cross-Border Payment Prototype ⭐ (Main Demo)
+1. Navigate to `/cross-border`
+2. Enter recipient address
+3. Select: Send XLM → Receive USDC
+4. Enter amount: 10 USDC
+5. Click "Get Quote" (shows conversion rate)
+6. Click "Send Payment"
+7. Show transaction on Stellar Expert
+8. Explain: 2-5 second settlement, <$0.01 fee, automatic conversion
+
+### 2. Stablecoin/Token Issuance Demo
+1. Navigate to `/token-issuance`
+2. Create custom token (e.g., "POINTS" for loyalty program)
+3. Set supply limit
+4. Issue tokens
+5. Show issuer and distributor addresses
+6. Explain: No smart contract needed, built into Stellar
+
+### 3. Merchant Payment Solution
+1. Navigate to `/receive`
+2. Show QR code for payments
+3. Copy merchant address
+4. Explain: Customers scan QR or use address to pay
+5. Show transaction history
+
+### 4. Savings Group/Microfinance Tool
+1. Navigate to `/savings-group`
+2. Create savings pool (e.g., "Women's Group")
+3. Set target amount and member count
+4. Make first contribution
+5. Show pool address for other members
+6. Explain: Perfect for chamas (Kenya), ROSCAs, village savings
+
+### Bonus: Smart Contracts
+1. Show Rust code: `contracts/escrow/src/lib.rs`
+2. Explain programmable escrow logic
+3. If deployed: Demo at `/soroban-escrow`
+
+## 🌐 Network Configuration
+
+**Testnet (Default):**
+```typescript
+// src/lib/stellar.ts
+const USE_TESTNET = true;
+```
+
+**Endpoints:**
+- Horizon: https://horizon-testnet.stellar.org
+- Soroban: https://soroban-testnet.stellar.org
+- Friendbot: https://friendbot.stellar.org
+- Explorer: https://stellar.expert/explorer/testnet
+
+## 💡 Key Stellar Concepts
+
+### Path Payments
+Automatic currency conversion using Stellar's built-in DEX:
+```typescript
+await sendPathPayment(
+  sourceKeypair,
+  recipientAddress,
+  StellarSdk.Asset.native(),  // Send XLM
+  "50",                        // Max 50 XLM
+  ASSETS.USDC,                 // Receive USDC
+  "10"                         // Exactly 10 USDC
+);
+```
+
+### Trustlines
+Required before receiving custom assets:
+```typescript
+await createTrustline(accountKeypair, ASSETS.USDC);
+```
+
+### Soroban Smart Contracts
+Programmable logic in Rust:
+```rust
+pub fn create_escrow(
+    env: Env,
+    creator: Address,
+    recipient: Address,
+    amount: i128,
+    deadline: u64,
+) -> u64
+```
+
+## 🐛 Troubleshooting
+
+**Account not found?**  
+→ Fund with Friendbot: https://friendbot.stellar.org
+
+**No trustline?**  
+→ Create trustline before receiving USDC/EURC
+
+**Path not found?**  
+→ Ensure assets have DEX liquidity
+
+**Soroban deployment fails?**  
+→ Wait for CLI upgrade to complete (check with `soroban version`)
+
+## 🔗 Resources
+
+- [Stellar Docs](https://stellar.org/developers)
+- [JavaScript SDK](https://stellar.github.io/js-stellar-sdk/)
+- [Soroban Docs](https://soroban.stellar.org/docs)
+- [Stellar Laboratory](https://laboratory.stellar.org/)
+- [Stellar Discord](https://discord.gg/stellar)
+
+## 🌍 Real-World Anchors
+
+**Africa:**
+- Yellow Card - Tanzania, Kenya, Uganda, Nigeria, Ghana
+- MoneyGram - 180+ countries, USDC cash-out
+- Fonbnk - Airtime to stablecoin
+
+**Global:**
+- Circle - USDC issuer
+- Tempo - EURC issuer
+- Bitso - Mexico/LATAM
+
+## 📝 License
+
+MIT
+
+---
+
+**Made for Stellar Mini-Hackathon 2024** 🚀
