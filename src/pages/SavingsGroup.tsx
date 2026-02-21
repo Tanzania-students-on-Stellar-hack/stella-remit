@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,7 @@ import { useAuth } from "@/contexts/AuthContext";
 export default function SavingsGroup() {
   const { toast } = useToast();
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [loadingPools, setLoadingPools] = useState(true);
   
@@ -32,15 +34,18 @@ export default function SavingsGroup() {
   
   const [savingsPool, setSavingsPool] = useState<any>(null);
   const [myPools, setMyPools] = useState<any[]>([]);
+  const hasHandledPoolParam = useRef(false);
+  const hasLoadedPools = useRef(false);
 
-  // Load user's pools on mount
-  useEffect(() => {
-    if (user) {
-      loadMyPools();
+  // Memoize loadMyPools to prevent unnecessary re-renders
+  const loadMyPools = useCallback(async (forceReload = false) => {
+    // Prevent duplicate loads unless forced
+    if (hasLoadedPools.current && !forceReload) {
+      return;
     }
-  }, [user]);
-
-  const loadMyPools = async () => {
+    
+    hasLoadedPools.current = true;
+    
     try {
       const { data, error } = await supabase
         .from("savings_pools")
@@ -49,19 +54,25 @@ export default function SavingsGroup() {
 
       if (error) throw error;
       
-      setMyPools(data || []);
+      // Deduplicate pools by id (just in case)
+      const uniquePools = data ? Array.from(
+        new Map(data.map(pool => [pool.id, pool])).values()
+      ) : [];
       
-      // Load the most recent pool as active
-      if (data && data.length > 0) {
+      setMyPools(uniquePools);
+      
+      // Load the most recent pool as active only if no pool is selected and not forcing reload
+      if (uniquePools.length > 0 && !savingsPool && !forceReload) {
+        const poolName = uniquePools[0].name || uniquePools[0].pool_name;
         setSavingsPool({
-          ...data[0],
-          poolAddress: data[0].pool_address,
-          currentBalance: data[0].current_balance,
-          target: data[0].target_amount,
-          contribution: data[0].contribution_amount,
-          members: data[0].member_count,
-          useSmartContract: data[0].use_smart_contract,
-          unlockDate: data[0].unlock_date,
+          name: poolName,
+          poolAddress: uniquePools[0].pool_address,
+          currentBalance: uniquePools[0].current_balance,
+          target: uniquePools[0].target_amount,
+          contribution: uniquePools[0].contribution_amount,
+          members: uniquePools[0].member_count,
+          useSmartContract: uniquePools[0].use_smart_contract,
+          unlockDate: uniquePools[0].unlock_date,
         });
       }
     } catch (error: any) {
@@ -69,7 +80,77 @@ export default function SavingsGroup() {
     } finally {
       setLoadingPools(false);
     }
-  };
+  }, []); // Remove savingsPool dependency
+
+  // Load user's pools on mount
+  useEffect(() => {
+    if (user && !hasLoadedPools.current) {
+      loadMyPools();
+    }
+  }, [user, loadMyPools]);
+
+  // Handle pool query parameter from email invitation (run only once)
+  useEffect(() => {
+    const poolAddress = searchParams.get('pool');
+    if (poolAddress && !hasHandledPoolParam.current) {
+      hasHandledPoolParam.current = true;
+      
+      // First try to find in loaded pools
+      const invitedPool = myPools.find(p => p.pool_address === poolAddress);
+      
+      if (invitedPool) {
+        const poolName = invitedPool.name || invitedPool.pool_name;
+        setSavingsPool({
+          name: poolName,
+          poolAddress: invitedPool.pool_address,
+          currentBalance: invitedPool.current_balance || '0',
+          target: invitedPool.target_amount,
+          contribution: invitedPool.contribution_amount,
+          members: invitedPool.member_count,
+          useSmartContract: invitedPool.use_smart_contract,
+          unlockDate: invitedPool.unlock_date,
+          poolSecret: localStorage.getItem(`pool_secret_${invitedPool.pool_address}`) || '',
+        });
+        toast({ 
+          title: "Pool found!", 
+          description: `Welcome to ${poolName}. You can now contribute.` 
+        });
+      } else if (myPools.length > 0) {
+        // If pools are loaded but pool not found, try to fetch it directly from database
+        supabase
+          .from("savings_pools")
+          .select("*")
+          .eq("pool_address", poolAddress)
+          .single()
+          .then(({ data, error }) => {
+            if (error || !data) {
+              toast({
+                title: "Pool not found",
+                description: "This pool may not exist or there may be a permissions issue. Please ask the pool creator to check the settings.",
+                variant: "destructive",
+              });
+            } else {
+              const poolName = data.name || data.pool_name;
+              setSavingsPool({
+                name: poolName,
+                poolAddress: data.pool_address,
+                currentBalance: data.current_balance || '0',
+                target: data.target_amount,
+                contribution: data.contribution_amount,
+                members: data.member_count,
+                useSmartContract: data.use_smart_contract,
+                unlockDate: data.unlock_date,
+                poolSecret: '',
+              });
+              toast({ 
+                title: "Pool found!", 
+                description: `Welcome to ${poolName}. You can now contribute.` 
+              });
+            }
+          });
+      }
+    }
+  }, [searchParams, myPools, toast]);
 
   const addPhoneField = () => {
     setMemberPhones([...memberPhones, ""]);
@@ -329,7 +410,7 @@ export default function SavingsGroup() {
       };
 
       setSavingsPool(poolInfo);
-      await loadMyPools(); // Reload pools list
+      await loadMyPools(true); // Reload pools list
 
       toast({
         title: "Savings pool created!",
@@ -433,12 +514,27 @@ export default function SavingsGroup() {
       await server.submitTransaction(tx);
 
       const newBalance = parseFloat(savingsPool.currentBalance) + parseFloat(amount);
+      
+      // Update database
+      const { error: updateError } = await supabase
+        .from("savings_pools")
+        .update({ current_balance: newBalance })
+        .eq("pool_address", savingsPool.poolAddress);
+
+      if (updateError) {
+        console.error("Failed to update database:", updateError);
+      }
+
+      // Update local state
       setSavingsPool({ ...savingsPool, currentBalance: newBalance.toString() });
 
       toast({
         title: "Contribution successful!",
         description: `Added ${amount} XLM to ${savingsPool.name}`,
       });
+      
+      // Refresh pools list to show updated balance
+      await loadMyPools(true);
     } catch (error: any) {
       toast({
         title: "Contribution failed",
@@ -712,11 +808,12 @@ export default function SavingsGroup() {
                 <div className="space-y-4">
                   {myPools.map((pool) => {
                     const progress = (parseFloat(pool.current_balance || '0') / parseFloat(pool.target_amount)) * 100;
+                    const poolName = pool.name || pool.pool_name; // Handle both column names
                     return (
                       <div key={pool.id} className="p-4 border rounded-lg space-y-3">
                         <div className="flex items-start justify-between">
                           <div>
-                            <h3 className="font-semibold">{pool.pool_name}</h3>
+                            <h3 className="font-semibold">{poolName}</h3>
                             <p className="text-xs text-muted-foreground font-mono">
                               {pool.pool_address?.substring(0, 10)}...{pool.pool_address?.substring(pool.pool_address.length - 6)}
                             </p>
@@ -726,7 +823,7 @@ export default function SavingsGroup() {
                             variant="outline"
                             onClick={() => {
                               setSavingsPool({
-                                name: pool.pool_name,
+                                name: poolName,
                                 poolAddress: pool.pool_address,
                                 currentBalance: pool.current_balance || '0',
                                 target: pool.target_amount,
@@ -736,7 +833,7 @@ export default function SavingsGroup() {
                                 unlockDate: pool.unlock_date,
                                 poolSecret: localStorage.getItem(`pool_secret_${pool.pool_address}`) || '',
                               });
-                              toast({ title: "Pool selected", description: `Now viewing ${pool.pool_name}` });
+                              toast({ title: "Pool selected", description: `Now viewing ${poolName}` });
                             }}
                           >
                             View

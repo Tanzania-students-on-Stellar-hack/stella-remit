@@ -62,9 +62,16 @@ const Receive = () => {
               <CardContent className="space-y-6">
                 <div className="flex justify-center">
                   <div className="bg-card p-4 rounded-lg border border-border">
-                    <QRCodeSVG value={publicKey} size={200} />
+                    <QRCodeSVG 
+                      value={`web+stellar:pay?destination=${publicKey}`} 
+                      size={200}
+                      level="M"
+                    />
                   </div>
                 </div>
+                <p className="text-xs text-center text-muted-foreground">
+                  Scan with Stellar wallet app or copy address below
+                </p>
                 <div>
                   <code className="text-xs bg-muted px-3 py-2 rounded block break-all">{publicKey}</code>
                 </div>
