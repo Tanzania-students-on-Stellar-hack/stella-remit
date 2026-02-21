@@ -20,6 +20,7 @@ import TokenIssuance from "./pages/TokenIssuance";
 import SavingsGroup from "./pages/SavingsGroup";
 import Settings from "./pages/Settings";
 import Help from "./pages/Help";
+import Invoice from "./pages/Invoice";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -45,6 +46,7 @@ const App = () => (
               <Route path="/savings-group" element={<ProtectedRoute><SavingsGroup /></ProtectedRoute>} />
               <Route path="/escrow" element={<ProtectedRoute><Escrow /></ProtectedRoute>} />
               <Route path="/soroban-escrow" element={<ProtectedRoute><SorobanEscrow /></ProtectedRoute>} />
+              <Route path="/invoice" element={<ProtectedRoute><Invoice /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
               <Route path="/help" element={<ProtectedRoute><Help /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />

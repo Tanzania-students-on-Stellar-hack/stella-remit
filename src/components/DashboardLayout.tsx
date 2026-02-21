@@ -4,13 +4,14 @@ import { Button } from "@/components/ui/button";
 import {
   Globe, LayoutDashboard, Send, Download, History,
   ArrowLeftRight, Shield, LogOut, User, Settings, HelpCircle, Sparkles,
-  Coins, PiggyBank,
+  Coins, PiggyBank, FileText,
 } from "lucide-react";
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/send", label: "Send Money", icon: Send },
   { to: "/receive", label: "Receive", icon: Download },
+  { to: "/invoice", label: "Invoice", icon: FileText },
   { to: "/cross-border", label: "Cross-Border", icon: Globe },
   { to: "/token-issuance", label: "Issue Token", icon: Coins },
   { to: "/savings-group", label: "Savings Group", icon: PiggyBank },

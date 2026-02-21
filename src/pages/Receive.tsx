@@ -6,10 +6,12 @@ import { Copy, Download, ExternalLink, AlertTriangle } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
 import { accountExplorerUrl, isTestnet } from "@/lib/stellar";
+import { useState } from "react";
 
 const Receive = () => {
   const { profile } = useAuth();
   const publicKey = profile?.stellar_public_key;
+  const [qrFormat, setQrFormat] = useState<'address' | 'uri'>('address');
 
   const copyAddress = () => {
     if (publicKey) {
@@ -17,6 +19,35 @@ const Receive = () => {
       toast.success("Address copied!");
     }
   };
+
+  const downloadQR = () => {
+    const svg = document.getElementById('qr-code-svg');
+    if (!svg) return;
+    
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    
+    img.onload = () => {
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx?.drawImage(img, 0, 0);
+      const pngFile = canvas.toDataURL('image/png');
+      
+      const downloadLink = document.createElement('a');
+      downloadLink.download = 'stellar-wallet-qr.png';
+      downloadLink.href = pngFile;
+      downloadLink.click();
+      toast.success("QR code downloaded!");
+    };
+    
+    img.src = 'data:image/svg+xml;base64,' + btoa(svgData);
+  };
+
+  const qrValue = qrFormat === 'uri' 
+    ? `web+stellar:pay?destination=${publicKey}` 
+    : publicKey || '';
 
   return (
     <DashboardLayout>
@@ -61,23 +92,52 @@ const Receive = () => {
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="flex justify-center">
-                  <div className="bg-card p-4 rounded-lg border border-border">
+                  <div className="bg-white p-6 rounded-lg border-2 border-border shadow-sm">
                     <QRCodeSVG 
-                      value={`web+stellar:pay?destination=${publicKey}`} 
-                      size={200}
-                      level="M"
+                      id="qr-code-svg"
+                      value={qrValue}
+                      size={220}
+                      level="H"
+                      includeMargin={true}
+                      bgColor="#ffffff"
+                      fgColor="#000000"
                     />
                   </div>
                 </div>
+                
+                <div className="flex justify-center gap-2">
+                  <Button 
+                    variant={qrFormat === 'address' ? 'default' : 'outline'} 
+                    size="sm"
+                    onClick={() => setQrFormat('address')}
+                  >
+                    Address Only
+                  </Button>
+                  <Button 
+                    variant={qrFormat === 'uri' ? 'default' : 'outline'} 
+                    size="sm"
+                    onClick={() => setQrFormat('uri')}
+                  >
+                    Stellar URI
+                  </Button>
+                </div>
+
                 <p className="text-xs text-center text-muted-foreground">
-                  Scan with Stellar wallet app or copy address below
+                  {qrFormat === 'address' 
+                    ? 'Scan with any QR reader to get the wallet address'
+                    : 'Scan with Stellar wallet app for direct payment'}
                 </p>
+                
                 <div>
                   <code className="text-xs bg-muted px-3 py-2 rounded block break-all">{publicKey}</code>
                 </div>
+                
                 <div className="flex gap-3">
                   <Button variant="outline" className="flex-1" onClick={copyAddress}>
                     <Copy className="h-4 w-4 mr-2" /> Copy Address
+                  </Button>
+                  <Button variant="outline" onClick={downloadQR}>
+                    <Download className="h-4 w-4 mr-2" /> Download QR
                   </Button>
                   <Button variant="outline" asChild>
                     <a href={accountExplorerUrl(publicKey)} target="_blank" rel="noopener noreferrer">
