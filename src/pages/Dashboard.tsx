@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { getBalance } from "@/lib/stellar";
+import { getBalance, isTestnet } from "@/lib/stellar";
 import { supabase } from "@/integrations/supabase/client";
 import { Send, Download, ArrowLeftRight, Shield, RefreshCw, Wallet, Bell, AlertTriangle } from "lucide-react";
 import { RecentTransactions } from "@/components/RecentTransactions";
@@ -114,13 +114,21 @@ const Dashboard = () => {
           <OnboardingTutorial onComplete={completeOnboarding} />
         )}
 
-        {/* Mainnet Warning */}
-        <Card className="border-warning/40 bg-warning/5">
+        {/* Network Warning */}
+        <Card className={isTestnet ? "border-blue-500/40 bg-blue-500/5" : "border-warning/40 bg-warning/5"}>
           <CardContent className="py-4">
             <div className="flex items-start gap-2 text-sm">
-              <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
+              <AlertTriangle className={`h-5 w-5 shrink-0 mt-0.5 ${isTestnet ? "text-blue-500" : "text-warning"}`} />
               <p className="text-foreground">
-                <strong>Live Network:</strong> You are on the Stellar Mainnet. All transactions use real XLM and are irreversible. Double-check addresses and amounts before sending.
+                {isTestnet ? (
+                  <>
+                    <strong>Testnet Mode:</strong> You are on Stellar Testnet. All transactions use test XLM (no real value). Perfect for development and demos! Get free test XLM from Friendbot.
+                  </>
+                ) : (
+                  <>
+                    <strong>Live Network:</strong> You are on the Stellar Mainnet. All transactions use real XLM and are irreversible. Double-check addresses and amounts before sending.
+                  </>
+                )}
               </p>
             </div>
           </CardContent>

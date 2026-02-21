@@ -1,7 +1,8 @@
 import * as StellarSdk from "@stellar/stellar-sdk";
-import { sorobanServer } from "./stellar";
+import { sorobanServer, networkPassphrase } from "./stellar";
 
-const NETWORK_PASSPHRASE = StellarSdk.Networks.PUBLIC;
+// Use the same network as stellar.ts (testnet for hackathon)
+const NETWORK_PASSPHRASE = networkPassphrase;
 
 // Deployed Soroban escrow contract on testnet
 export const ESCROW_CONTRACT_ID = "CBUE656QQWRAHZFA4HCWBFYUJOVME7XDNQ4QXQUIJDND2ACBGA6BAEU7";

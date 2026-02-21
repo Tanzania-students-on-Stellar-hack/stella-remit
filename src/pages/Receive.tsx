@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Copy, Download, ExternalLink, AlertTriangle } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
-import { accountExplorerUrl } from "@/lib/stellar";
+import { accountExplorerUrl, isTestnet } from "@/lib/stellar";
 
 const Receive = () => {
   const { profile } = useAuth();
@@ -31,13 +31,22 @@ const Receive = () => {
           </Card>
         ) : (
           <div className="space-y-4">
-            <Card className="border-warning/40 bg-warning/5">
+            <Card className={isTestnet ? "border-blue-500/40 bg-blue-500/5" : "border-warning/40 bg-warning/5"}>
               <CardContent className="py-4">
                 <div className="flex items-start gap-2 text-sm">
-                  <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
+                  <AlertTriangle className={`h-5 w-5 shrink-0 mt-0.5 ${isTestnet ? "text-blue-500" : "text-warning"}`} />
                   <p className="text-foreground">
-                    <strong>Mainnet Warning:</strong> This is the live Stellar network.
-                    Only send real XLM to this address. Transactions are irreversible.
+                    {isTestnet ? (
+                      <>
+                        <strong>Testnet Mode:</strong> This address is on Stellar Testnet.
+                        Only send test XLM (no real value). Get free test XLM from Friendbot.
+                      </>
+                    ) : (
+                      <>
+                        <strong>Mainnet Warning:</strong> This is the live Stellar network.
+                        Only send real XLM to this address. Transactions are irreversible.
+                      </>
+                    )}
                   </p>
                 </div>
               </CardContent>
