@@ -26,7 +26,9 @@ export default function SavingsGroup() {
   const [useSmartContract, setUseSmartContract] = useState(false);
   const [unlockDate, setUnlockDate] = useState("");
   const [memberPhones, setMemberPhones] = useState<string[]>([""]);
+  const [memberEmails, setMemberEmails] = useState<string[]>([""]);
   const [sendSMS, setSendSMS] = useState(false);
+  const [sendEmail, setSendEmail] = useState(false);
   
   const [savingsPool, setSavingsPool] = useState<any>(null);
   const [myPools, setMyPools] = useState<any[]>([]);
@@ -84,6 +86,21 @@ export default function SavingsGroup() {
     setMemberPhones(newPhones);
   };
 
+  const addEmailField = () => {
+    setMemberEmails([...memberEmails, ""]);
+  };
+
+  const removeEmailField = (index: number) => {
+    const newEmails = memberEmails.filter((_, i) => i !== index);
+    setMemberEmails(newEmails);
+  };
+
+  const updateEmailField = (index: number, value: string) => {
+    const newEmails = [...memberEmails];
+    newEmails[index] = value;
+    setMemberEmails(newEmails);
+  };
+
   const sendPoolInvitations = async (poolData: any) => {
     const validPhones = memberPhones.filter(phone => phone.trim() !== "");
     
@@ -114,6 +131,45 @@ export default function SavingsGroup() {
     toast({
       title: "Invitations sent!",
       description: `SMS sent to ${validPhones.length} member(s)`,
+    });
+  };
+
+  const sendEmailInvitations = async (poolData: any) => {
+    const validEmails = memberEmails.filter(email => email.trim() !== "" && email.includes('@'));
+    
+    if (validEmails.length === 0) {
+      return;
+    }
+
+    console.log("Sending emails to:", validEmails);
+
+    // Use Supabase Auth to send magic link emails with pool info
+    for (const email of validEmails) {
+      try {
+        const { error } = await supabase.auth.signInWithOtp({
+          email: email,
+          options: {
+            emailRedirectTo: `${window.location.origin}/savings-group`,
+            data: {
+              pool_name: poolData.name,
+              pool_address: poolData.poolAddress,
+              target_amount: poolData.target,
+              contribution_amount: poolData.contribution,
+            },
+          },
+        });
+
+        if (error) {
+          console.error(`Email error for ${email}:`, error);
+        }
+      } catch (err) {
+        console.error(`Failed to send email to ${email}:`, err);
+      }
+    }
+
+    toast({
+      title: "Email invitations sent!",
+      description: `Sent ${validEmails.length} email invitation(s)`,
     });
   };
 
@@ -253,6 +309,26 @@ export default function SavingsGroup() {
           toast({
             title: "Pool created, but SMS failed",
             description: "Pool was created successfully, but SMS invitations could not be sent.",
+            variant: "default",
+          });
+        }
+      }
+
+      // Send Email invitations if enabled
+      if (sendEmail) {
+        try {
+          await sendEmailInvitations({
+            name: groupName,
+            poolAddress: poolKeypair.publicKey(),
+            target: targetAmount,
+            contribution: contributionAmount,
+            members: memberCount,
+          });
+        } catch (emailError: any) {
+          console.error("Email error:", emailError);
+          toast({
+            title: "Pool created, but Email failed",
+            description: "Pool was created successfully, but email invitations could not be sent.",
             variant: "default",
           });
         }
@@ -450,6 +526,22 @@ export default function SavingsGroup() {
                 </div>
               </div>
 
+              <div className="flex items-center space-x-2 p-3 border rounded-lg">
+                <Checkbox 
+                  id="sendEmail" 
+                  checked={sendEmail}
+                  onCheckedChange={(checked) => setSendEmail(checked as boolean)}
+                />
+                <div className="flex-1">
+                  <Label htmlFor="sendEmail" className="cursor-pointer">
+                    Send Email Invitations 📧
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Notify members via email when pool is created
+                  </p>
+                </div>
+              </div>
+
               {sendSMS && (
                 <div className="space-y-3 p-3 bg-muted rounded-lg">
                   <div className="flex items-center justify-between">
@@ -493,6 +585,49 @@ export default function SavingsGroup() {
                 </div>
               )}
 
+              {sendEmail && (
+                <div className="space-y-3 p-3 bg-muted rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <Label>Member Email Addresses</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addEmailField}
+                    >
+                      📧 Add Member
+                    </Button>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    {memberEmails.map((email, index) => (
+                      <div key={index} className="flex gap-2">
+                        <Input
+                          type="email"
+                          placeholder="member@example.com"
+                          value={email}
+                          onChange={(e) => updateEmailField(index, e.target.value)}
+                        />
+                        {memberEmails.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeEmailField(index)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  
+                  <p className="text-xs text-muted-foreground">
+                    💡 Members will receive an email invitation with pool details
+                  </p>
+                </div>
+              )}
+
               <Button
                 onClick={handleCreatePool}
                 disabled={loading}
@@ -517,103 +652,168 @@ export default function SavingsGroup() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <TrendingUp className="h-5 w-5" />
-                Pool Status
+                Your Savings Pools
               </CardTitle>
               <CardDescription>
-                Track savings progress
+                All your savings groups
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {savingsPool ? (
+              {loadingPools ? (
+                <div className="py-8 text-center text-muted-foreground">Loading pools...</div>
+              ) : myPools.length === 0 ? (
+                <div className="py-8 text-center text-muted-foreground">
+                  <PiggyBank className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p>No savings pools yet. Create one above!</p>
+                </div>
+              ) : (
                 <div className="space-y-4">
-                  <div className="p-4 bg-muted rounded-lg space-y-3">
-                    <div>
-                      <span className="text-sm text-muted-foreground">Group Name</span>
-                      <p className="font-semibold">{savingsPool.name}</p>
-                    </div>
-                    <div>
-                      <span className="text-sm text-muted-foreground">Pool Address</span>
-                      <p className="font-mono text-xs break-all">{savingsPool.poolAddress}</p>
-                    </div>
-                    {savingsPool.useSmartContract && (
-                      <div className="p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-800">
-                        <div className="flex items-center gap-2 text-yellow-700 dark:text-yellow-400 text-sm font-semibold">
-                          <span>🔒</span>
-                          <span>Smart Contract Time-Lock Active</span>
+                  {myPools.map((pool) => {
+                    const progress = (parseFloat(pool.current_balance || '0') / parseFloat(pool.target_amount)) * 100;
+                    return (
+                      <div key={pool.id} className="p-4 border rounded-lg space-y-3">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h3 className="font-semibold">{pool.pool_name}</h3>
+                            <p className="text-xs text-muted-foreground font-mono">
+                              {pool.pool_address?.substring(0, 10)}...{pool.pool_address?.substring(pool.pool_address.length - 6)}
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setSavingsPool({
+                                name: pool.pool_name,
+                                poolAddress: pool.pool_address,
+                                currentBalance: pool.current_balance || '0',
+                                target: pool.target_amount,
+                                contribution: pool.contribution_amount,
+                                members: pool.member_count,
+                                useSmartContract: pool.use_smart_contract,
+                                unlockDate: pool.unlock_date,
+                                poolSecret: localStorage.getItem(`pool_secret_${pool.pool_address}`) || '',
+                              });
+                              toast({ title: "Pool selected", description: `Now viewing ${pool.pool_name}` });
+                            }}
+                          >
+                            View
+                          </Button>
                         </div>
-                        <p className="text-xs text-yellow-600 dark:text-yellow-500 mt-1">
-                          Unlock Date: {savingsPool.unlockDate}
-                        </p>
-                        <p className="text-xs text-yellow-600 dark:text-yellow-500">
-                          Soroban contract prevents withdrawals until this date
-                        </p>
+
+                        {pool.use_smart_contract && (
+                          <div className="p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-800 text-xs">
+                            <span className="text-yellow-700 dark:text-yellow-400 font-semibold">
+                              🔒 Locked until {new Date(pool.unlock_date).toLocaleDateString()}
+                            </span>
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-3 gap-2 text-sm">
+                          <div>
+                            <span className="text-muted-foreground text-xs">Current</span>
+                            <p className="font-semibold">{parseFloat(pool.current_balance || '0').toFixed(2)} XLM</p>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground text-xs">Target</span>
+                            <p className="font-semibold">{parseFloat(pool.target_amount).toFixed(2)} XLM</p>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground text-xs">Members</span>
+                            <p className="font-semibold">{pool.member_count}</p>
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="flex justify-between text-xs mb-1">
+                            <span className="text-muted-foreground">Progress</span>
+                            <span className="font-semibold">{progress.toFixed(1)}%</span>
+                          </div>
+                          <div className="w-full bg-secondary rounded-full h-2">
+                            <div 
+                              className="bg-primary h-2 rounded-full transition-all"
+                              style={{ width: `${Math.min(progress, 100)}%` }}
+                            />
+                          </div>
+                        </div>
                       </div>
-                    )}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <span className="text-sm text-muted-foreground">Current</span>
-                        <p className="font-semibold">{savingsPool.currentBalance} XLM</p>
-                      </div>
-                      <div>
-                        <span className="text-sm text-muted-foreground">Target</span>
-                        <p className="font-semibold">{savingsPool.target} XLM</p>
-                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {savingsPool && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <PiggyBank className="h-5 w-5" />
+                  {savingsPool.name}
+                </CardTitle>
+                <CardDescription>
+                  Pool details and actions
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="p-4 bg-muted rounded-lg space-y-2">
+                  <div>
+                    <span className="text-sm text-muted-foreground">Pool Address</span>
+                    <p className="font-mono text-xs break-all">{savingsPool.poolAddress}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <span className="text-sm text-muted-foreground">Current Balance</span>
+                      <p className="font-semibold text-lg">{savingsPool.currentBalance} XLM</p>
                     </div>
                     <div>
-                      <div className="flex justify-between text-sm mb-2">
-                        <span>Progress</span>
-                        <span>{((parseFloat(savingsPool.currentBalance) / parseFloat(savingsPool.target)) * 100).toFixed(1)}%</span>
-                      </div>
-                      <div className="w-full bg-secondary rounded-full h-2">
-                        <div 
-                          className="bg-primary h-2 rounded-full transition-all"
-                          style={{ width: `${Math.min((parseFloat(savingsPool.currentBalance) / parseFloat(savingsPool.target)) * 100, 100)}%` }}
-                        />
-                      </div>
+                      <span className="text-sm text-muted-foreground">Target Amount</span>
+                      <p className="font-semibold text-lg">{savingsPool.target} XLM</p>
                     </div>
                   </div>
+                </div>
 
-                  <Button onClick={handleContribute} className="w-full" variant="outline">
-                    <Users className="mr-2 h-4 w-4" />
-                    Add Contribution
-                  </Button>
+                <Button onClick={handleContribute} className="w-full">
+                  <Users className="mr-2 h-4 w-4" />
+                  Add Contribution
+                </Button>
 
-                  {!savingsPool.useSmartContract && (
-                    <div className="text-xs text-muted-foreground space-y-1 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-800">
-                      <p className="font-semibold text-yellow-700 dark:text-yellow-400">⚠️ Important: Save Pool Secret Key</p>
-                      <p className="text-yellow-600 dark:text-yellow-500">
-                        Without smart contract protection, anyone with this key can withdraw funds at any time.
+                {!savingsPool.useSmartContract && savingsPool.poolSecret && (
+                  <div className="text-xs text-muted-foreground space-y-1 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-800">
+                    <p className="font-semibold text-yellow-700 dark:text-yellow-400">⚠️ Pool Secret Key</p>
+                    <details className="mt-2">
+                      <summary className="cursor-pointer text-yellow-700 dark:text-yellow-400 font-semibold">
+                        Click to reveal
+                      </summary>
+                      <p className="font-mono break-all mt-2 p-2 bg-black/10 rounded text-xs">
+                        {savingsPool.poolSecret}
                       </p>
-                      <details className="mt-2">
-                        <summary className="cursor-pointer text-yellow-700 dark:text-yellow-400 font-semibold">
-                          Click to reveal secret key
-                        </summary>
-                        <p className="font-mono break-all mt-2 p-2 bg-black/10 rounded">
-                          {savingsPool.poolSecret}
-                        </p>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="mt-2 w-full"
-                          onClick={() => {
-                            navigator.clipboard.writeText(savingsPool.poolSecret);
-                            toast({ title: "Secret key copied!" });
-                          }}
-                        >
-                          Copy Secret Key
-                        </Button>
-                      </details>
-                    </div>
-                  )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="mt-2 w-full"
+                        onClick={() => {
+                          navigator.clipboard.writeText(savingsPool.poolSecret);
+                          toast({ title: "Secret key copied!" });
+                        }}
+                      >
+                        Copy Secret Key
+                      </Button>
+                    </details>
+                  </div>
+                )}
 
-                  {savingsPool.useSmartContract && (
-                    <div className="text-xs text-muted-foreground space-y-1 p-3 bg-green-50 dark:bg-green-900/20 rounded border border-green-200 dark:border-green-800">
-                      <p className="font-semibold text-green-700 dark:text-green-400">✅ Smart Contract Protected</p>
-                      <p className="text-green-600 dark:text-green-500">
-                        Funds are locked by Soroban smart contract until {savingsPool.unlockDate}. No one can withdraw before this date, even with the secret key.
-                      </p>
-                    </div>
-                  )}
+                {savingsPool.useSmartContract && (
+                  <div className="text-xs text-muted-foreground space-y-1 p-3 bg-green-50 dark:bg-green-900/20 rounded border border-green-200 dark:border-green-800">
+                    <p className="font-semibold text-green-700 dark:text-green-400">✅ Smart Contract Protected</p>
+                    <p className="text-green-600 dark:text-green-500">
+                      Funds locked until {savingsPool.unlockDate}
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
                 </div>
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
