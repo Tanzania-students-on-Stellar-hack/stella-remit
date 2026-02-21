@@ -1,10 +1,21 @@
 import * as StellarSdk from "@stellar/stellar-sdk";
-import { server } from "./stellar";
-
-const NETWORK_PASSPHRASE = StellarSdk.Networks.PUBLIC;
+import { server, networkPassphrase, isTestnet } from "./stellar";
 
 // Common stablecoin issuers on Stellar
-export const ASSETS = {
+// Testnet assets for testing
+const TESTNET_ASSETS = {
+  USDC: new StellarSdk.Asset(
+    "USDC",
+    "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
+  ),
+  EURC: new StellarSdk.Asset(
+    "EURC",
+    "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
+  ),
+};
+
+// Mainnet assets
+const MAINNET_ASSETS = {
   USDC: new StellarSdk.Asset(
     "USDC",
     "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN"
@@ -13,8 +24,9 @@ export const ASSETS = {
     "EURC",
     "GDHU6WRG4IEQXM5NZ4BMPKOXHW76MZM4Y2IEMFDVXBSDP6SJY4ITNPP2"
   ),
-  // Add more assets as needed
 };
+
+export const ASSETS = isTestnet ? TESTNET_ASSETS : MAINNET_ASSETS;
 
 /**
  * Find payment paths for cross-border transfers
@@ -64,7 +76,7 @@ export async function sendPathPayment(
 
     const txBuilder = new StellarSdk.TransactionBuilder(sourceAccount, {
       fee: fee.toString(),
-      networkPassphrase: NETWORK_PASSPHRASE,
+      networkPassphrase: networkPassphrase,
     });
 
     // Add path payment operation
@@ -152,7 +164,7 @@ export async function createTrustline(
 
     const transaction = new StellarSdk.TransactionBuilder(account, {
       fee: fee.toString(),
-      networkPassphrase: NETWORK_PASSPHRASE,
+      networkPassphrase: networkPassphrase,
     })
       .addOperation(
         StellarSdk.Operation.changeTrust({

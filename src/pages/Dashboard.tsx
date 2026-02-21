@@ -86,10 +86,27 @@ const Dashboard = () => {
   const handleCreateWallet = async () => {
     setWalletCreating(true);
     try {
-      const { data, error } = await supabase.functions.invoke("create-wallet");
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      toast.success("Stellar wallet created!");
+      // Generate Stellar keypair on client side
+      const { Keypair } = await import("@stellar/stellar-sdk");
+      const keypair = Keypair.random();
+      const publicKey = keypair.publicKey();
+      const secretKey = keypair.secret();
+
+      // Update profile with public key
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({ stellar_public_key: publicKey })
+        .eq("user_id", profile?.user_id);
+
+      if (updateError) throw updateError;
+
+      // Store secret key in localStorage temporarily (not secure, but works for demo)
+      // In production, this should be stored securely on the backend
+      localStorage.setItem(`stellar_secret_${profile?.user_id}`, secretKey);
+
+      toast.success("Stellar wallet created! Please save your secret key securely.");
+      toast.info(`Secret Key: ${secretKey}`, { duration: 10000 });
+      
       await refreshProfile();
     } catch (err: any) {
       toast.error(err.message || "Failed to create wallet");
@@ -165,7 +182,9 @@ const Dashboard = () => {
                   <div className="text-3xl font-bold font-sans">
                     {loadingBalance ? "..." : parseFloat(xlmBalance).toFixed(2)}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">Stellar Lumens (Mainnet)</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Stellar Lumens ({isTestnet ? "Testnet" : "Mainnet"})
+                  </p>
                 </CardContent>
               </Card>
               {balances
@@ -221,7 +240,7 @@ const Dashboard = () => {
             </div>
 
             {/* Funding Guide */}
-            <FundingGuide />
+            <FundingGuide publicKey={profile.stellar_public_key} />
 
             {/* Recent Transactions */}
             <RecentTransactions />

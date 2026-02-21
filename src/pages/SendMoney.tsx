@@ -46,17 +46,76 @@ const SendMoney = () => {
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("send-payment", {
-        body: {
-          destination: recipient.trim(),
-          amount: amount.trim(),
-          memo: memo.trim() || undefined,
-          asset: "XLM",
-        },
+      // Get user's secret key from localStorage
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      let secretKey = localStorage.getItem(`stellar_secret_${user.id}`);
+      
+      if (!secretKey) {
+        secretKey = prompt("Enter your Stellar secret key (starts with 'S'):");
+        if (!secretKey) throw new Error("Secret key required");
+      }
+
+      // Validate secret key format
+      if (!secretKey.startsWith('S')) {
+        throw new Error("Invalid secret key. Secret keys start with 'S', not 'G'.");
+      }
+
+      // Import Stellar SDK and send payment
+      const { Keypair, TransactionBuilder, Operation, Asset, Memo } = await import("@stellar/stellar-sdk");
+      const { server, networkPassphrase } = await import("@/lib/stellar");
+
+      const senderKeypair = Keypair.fromSecret(secretKey);
+      const account = await server.loadAccount(senderKeypair.publicKey());
+      const fee = await server.fetchBaseFee();
+
+      const txBuilder = new TransactionBuilder(account, {
+        fee: fee.toString(),
+        networkPassphrase: networkPassphrase,
       });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      setTxHash(data.tx_hash);
+
+      txBuilder.addOperation(
+        Operation.payment({
+          destination: recipient.trim(),
+          asset: Asset.native(),
+          amount: amount.trim(),
+        })
+      );
+
+      if (memo.trim()) {
+        txBuilder.addMemo(Memo.text(memo.trim()));
+      }
+
+      txBuilder.setTimeout(30);
+      const tx = txBuilder.build();
+      tx.sign(senderKeypair);
+
+      const result = await server.submitTransaction(tx);
+
+      // Try to save transaction to database (optional - won't fail if receiver not found)
+      try {
+        const { data: receiverProfile } = await supabase
+          .from("profiles")
+          .select("user_id")
+          .eq("stellar_public_key", recipient.trim())
+          .maybeSingle();
+
+        await supabase.from("transactions").insert({
+          sender_id: user.id,
+          receiver_id: receiverProfile?.user_id || user.id,
+          amount: parseFloat(amount),
+          asset: "XLM",
+          memo: memo.trim() || null,
+          tx_hash: result.hash,
+          status: "completed",
+        });
+      } catch (dbError) {
+        console.warn("Failed to save transaction to database:", dbError);
+        // Don't fail the payment if database save fails
+      }
+
+      setTxHash(result.hash);
       toast.success("Payment sent successfully!");
     } catch (err: any) {
       toast.error(err.message || "Failed to send payment");

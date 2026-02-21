@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Get Auth Token</title>
+  <style>
+    body { 
+      font-family: monospace; 
+      padding: 20px; 
+      background: #1a1a1a; 
+      color: #fff; 
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .box { 
+      margin: 20px 0; 
+      padding: 15px; 
+      border: 1px solid #333; 
+      border-radius: 4px; 
+      background: #2a2a2a;
+    }
+    button { 
+      padding: 10px 20px; 
+      margin: 10px 5px; 
+      cursor: pointer;
+      background: #2a5a2a;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    button:hover { background: #3a6a3a; }
+    input { 
+      padding: 8px; 
+      width: 100%; 
+      margin: 10px 0;
+      background: #1a1a1a;
+      border: 1px solid #444;
+      color: white;
+      border-radius: 4px;
+      font-family: monospace;
+    }
+    textarea {
+      width: 100%;
+      height: 150px;
+      background: #0a0a0a;
+      color: #0f0;
+      border: 1px solid #333;
+      padding: 10px;
+      font-family: monospace;
+      font-size: 12px;
+      border-radius: 4px;
+    }
+    .success { color: #0f0; }
+    .error { color: #f00; }
+    label { display: block; margin-top: 10px; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>🔑 Get Your Auth Token</h1>
+  
+  <div class="box">
+    <h3>Step 1: Login</h3>
+    <label>Email:</label>
+    <input type="email" id="email" placeholder="your@email.com" />
+    
+    <label>Password:</label>
+    <input type="password" id="password" placeholder="password" />
+    
+    <button onclick="login()">Login</button>
+    <div id="loginStatus"></div>
+  </div>
+
+  <div class="box">
+    <h3>Step 2: Copy Your Token</h3>
+    <p>Use this token in the Supabase Edge Function test:</p>
+    <textarea id="token" readonly placeholder="Token will appear here after login..."></textarea>
+    <button onclick="copyToken()">Copy Token</button>
+    <div id="copyStatus"></div>
+  </div>
+
+  <div class="box">
+    <h3>Step 3: Test in Supabase Dashboard</h3>
+    <ol>
+      <li>Go to: <a href="https://supabase.com/dashboard/project/zzvkbxdaayhbytcshwrs/functions" target="_blank">Edge Functions</a></li>
+      <li>Click on <code>create-wallet</code></li>
+      <li>Find the "Test" or "Invoke" section</li>
+      <li>Set request body to: <code>{}</code></li>
+      <li>Add header: <code>Authorization: Bearer YOUR_TOKEN</code></li>
+      <li>Click "Invoke" or "Send"</li>
+    </ol>
+  </div>
+  
+  <script type="module">
+    const SUPABASE_URL = 'https://zzvkbxdaayhbytcshwrs.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp6dmtieGRhYXloYnl0Y3Nod3JzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE2NjMyNjQsImV4cCI6MjA4NzIzOTI2NH0.YLHhwr2IjPDowG2gb4V-bGbHSnl2AScCVHCmuiE2l9o';
+    
+    window.login = async function() {
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const status = document.getElementById('loginStatus');
+      const tokenField = document.getElementById('token');
+      
+      if (!email || !password) {
+        status.innerHTML = '<p class="error">Please enter email and password</p>';
+        return;
+      }
+      
+      status.innerHTML = '<p>Logging in...</p>';
+      
+      try {
+        const response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+          method: 'POST',
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ email, password })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          status.innerHTML = `<p class="error">Login failed: ${data.error_description || data.message}</p>`;
+          return;
+        }
+        
+        const token = data.access_token;
+        tokenField.value = token;
+        status.innerHTML = '<p class="success">✅ Login successful! Token is ready to copy.</p>';
+        
+      } catch (error) {
+        status.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+      }
+    };
+    
+    window.copyToken = function() {
+      const tokenField = document.getElementById('token');
+      const status = document.getElementById('copyStatus');
+      
+      if (!tokenField.value) {
+        status.innerHTML = '<p class="error">No token to copy. Login first!</p>';
+        return;
+      }
+      
+      tokenField.select();
+      document.execCommand('copy');
+      status.innerHTML = '<p class="success">✅ Token copied to clipboard!</p>';
+      
+      setTimeout(() => {
+        status.innerHTML = '';
+      }, 3000);
+    };
+  </script>
+</body>
+</html>

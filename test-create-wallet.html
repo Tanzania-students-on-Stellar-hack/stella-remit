@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Test create-wallet Function</title>
+  <style>
+    body { 
+      font-family: monospace; 
+      padding: 20px; 
+      background: #1a1a1a; 
+      color: #fff; 
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .result { 
+      margin: 20px 0; 
+      padding: 15px; 
+      border: 1px solid #333; 
+      border-radius: 4px; 
+    }
+    .success { background: #1a3a1a; border-color: #2a5a2a; }
+    .error { background: #3a1a1a; border-color: #5a2a2a; }
+    .info { background: #1a2a3a; border-color: #2a4a5a; }
+    button { 
+      padding: 10px 20px; 
+      margin: 10px 5px; 
+      cursor: pointer;
+      background: #2a5a2a;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    button:hover { background: #3a6a3a; }
+    button:disabled { background: #333; cursor: not-allowed; }
+    pre { 
+      background: #0a0a0a; 
+      padding: 10px; 
+      border-radius: 4px; 
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    input { 
+      padding: 8px; 
+      width: 300px; 
+      margin: 10px 0;
+      background: #2a2a2a;
+      border: 1px solid #444;
+      color: white;
+      border-radius: 4px;
+    }
+    label { display: block; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h1>🧪 Test create-wallet Function</h1>
+  
+  <div class="info result">
+    <strong>Project:</strong> zzvkbxdaayhbytcshwrs<br>
+    <strong>Function:</strong> create-wallet
+  </div>
+
+  <div>
+    <label>Email:</label>
+    <input type="email" id="email" placeholder="your@email.com" />
+    
+    <label>Password:</label>
+    <input type="password" id="password" placeholder="password" />
+    
+    <div style="margin-top: 15px;">
+      <button onclick="testWithAuth()">Test with Login</button>
+      <button onclick="checkFunctionExists()">Check if Function Exists</button>
+    </div>
+  </div>
+  
+  <div id="results"></div>
+  
+  <script type="module">
+    const SUPABASE_URL = 'https://zzvkbxdaayhbytcshwrs.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp6dmtieGRhYXloYnl0Y3Nod3JzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE2NjMyNjQsImV4cCI6MjA4NzIzOTI2NH0.YLHhwr2IjPDowG2gb4V-bGbHSnl2AScCVHCmuiE2l9o';
+    
+    const results = document.getElementById('results');
+    
+    function addResult(html, type = 'info') {
+      const div = document.createElement('div');
+      div.className = `result ${type}`;
+      div.innerHTML = html;
+      results.appendChild(div);
+    }
+    
+    window.checkFunctionExists = async function() {
+      results.innerHTML = '';
+      addResult('<strong>Checking if create-wallet function exists...</strong>', 'info');
+      
+      try {
+        // Try to call without auth to see if function exists
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/create-wallet`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({})
+        });
+        
+        const text = await response.text();
+        
+        if (response.status === 404) {
+          addResult(`
+            <strong>❌ Function NOT Deployed</strong>
+            <p>The create-wallet function doesn't exist.</p>
+            <p><strong>Action needed:</strong> Deploy the function in Supabase Dashboard</p>
+            <pre>Status: ${response.status}
+Response: ${text}</pre>
+          `, 'error');
+        } else if (response.status === 401) {
+          addResult(`
+            <strong>✅ Function EXISTS (but needs auth)</strong>
+            <p>The function is deployed and responding.</p>
+            <p>401 is expected without login. Use "Test with Login" button.</p>
+            <pre>Status: ${response.status}</pre>
+          `, 'success');
+        } else {
+          addResult(`
+            <strong>⚠️ Unexpected Response</strong>
+            <pre>Status: ${response.status}
+Response: ${text}</pre>
+          `, 'info');
+        }
+      } catch (error) {
+        addResult(`
+          <strong>❌ Network Error</strong>
+          <pre>${error.message}</pre>
+        `, 'error');
+      }
+    };
+    
+    window.testWithAuth = async function() {
+      results.innerHTML = '';
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      
+      if (!email || !password) {
+        addResult('<strong>❌ Please enter email and password</strong>', 'error');
+        return;
+      }
+      
+      addResult('<strong>Step 1: Logging in...</strong>', 'info');
+      
+      try {
+        // Login
+        const loginResponse = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+          method: 'POST',
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ email, password })
+        });
+        
+        const loginData = await loginResponse.json();
+        
+        if (!loginResponse.ok) {
+          addResult(`
+            <strong>❌ Login Failed</strong>
+            <pre>${JSON.stringify(loginData, null, 2)}</pre>
+          `, 'error');
+          return;
+        }
+        
+        const accessToken = loginData.access_token;
+        addResult('<strong>✅ Login successful!</strong>', 'success');
+        
+        // Test create-wallet
+        addResult('<strong>Step 2: Calling create-wallet...</strong>', 'info');
+        
+        const walletResponse = await fetch(`${SUPABASE_URL}/functions/v1/create-wallet`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({})
+        });
+        
+        const walletText = await walletResponse.text();
+        let walletData;
+        try {
+          walletData = JSON.parse(walletText);
+        } catch {
+          walletData = walletText;
+        }
+        
+        if (walletResponse.ok) {
+          addResult(`
+            <strong>✅ Wallet Created Successfully!</strong>
+            <pre>${JSON.stringify(walletData, null, 2)}</pre>
+          `, 'success');
+        } else {
+          addResult(`
+            <strong>❌ Function Error</strong>
+            <p>Status: ${walletResponse.status}</p>
+            <pre>${typeof walletData === 'string' ? walletData : JSON.stringify(walletData, null, 2)}</pre>
+          `, 'error');
+        }
+        
+      } catch (error) {
+        addResult(`
+          <strong>❌ Error</strong>
+          <pre>${error.message}</pre>
+        `, 'error');
+      }
+    };
+  </script>
+</body>
+</html>

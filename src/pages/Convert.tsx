@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { getBalance } from "@/lib/stellar";
+import { getBalance, isTestnet } from "@/lib/stellar";
+import { getExchangeRates } from "@/lib/exchangeRates";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeftRight, ArrowDown, RefreshCw, Info } from "lucide-react";
 import { toast } from "sonner";
@@ -14,13 +15,9 @@ import { z } from "zod";
 
 const ASSETS = [
   { code: "XLM", label: "Stellar Lumens (XLM)" },
-  { code: "USDC", label: "Test USDC" },
+  { code: "USDC", label: "USD Coin" },
+  { code: "EURC", label: "Euro Coin" },
 ];
-
-const EXCHANGE_RATES: Record<string, Record<string, number>> = {
-  XLM: { USDC: 0.12, XLM: 1 },
-  USDC: { XLM: 8.33, USDC: 1 },
-};
 
 const convertSchema = z.object({
   amount: z
@@ -37,6 +34,8 @@ const Convert = () => {
   const [loading, setLoading] = useState(false);
   const [balances, setBalances] = useState<{ asset: string; balance: string }[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [exchangeRates, setExchangeRates] = useState<Record<string, Record<string, number>>>({});
+  const [ratesLoading, setRatesLoading] = useState(true);
 
   useEffect(() => {
     if (profile?.stellar_public_key) {
@@ -44,7 +43,15 @@ const Convert = () => {
     }
   }, [profile?.stellar_public_key]);
 
-  const rate = EXCHANGE_RATES[fromAsset]?.[toAsset] ?? 0;
+  useEffect(() => {
+    // Fetch real-time exchange rates
+    getExchangeRates().then((rates) => {
+      setExchangeRates(rates);
+      setRatesLoading(false);
+    });
+  }, []);
+
+  const rate = exchangeRates[fromAsset]?.[toAsset] ?? 0;
   const convertedAmount = amount && !isNaN(parseFloat(amount)) ? (parseFloat(amount) * rate).toFixed(4) : "0.0000";
   const fromBalance = balances.find((b) => b.asset === fromAsset)?.balance || "0";
 
@@ -182,7 +189,9 @@ const Convert = () => {
               {/* Rate info */}
               <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 px-3 py-2 rounded-md">
                 <Info className="h-3.5 w-3.5" />
-                <span>1 {fromAsset} ≈ {rate} {toAsset} (simulated rate)</span>
+                <span>
+                  {ratesLoading ? "Loading rates..." : `1 ${fromAsset} ≈ ${rate.toFixed(4)} ${toAsset} (live rate)`}
+                </span>
               </div>
 
               <Button type="submit" className="w-full" disabled={loading || !profile?.stellar_public_key || fromAsset === toAsset}>
@@ -201,9 +210,9 @@ const Convert = () => {
             <div className="flex items-start gap-2 text-xs text-muted-foreground">
               <Info className="h-4 w-4 mt-0.5 shrink-0" />
               <p>
-                <strong>Mainnet:</strong> Conversions currently use simulated rates. In a future update,
-                this will use Stellar's decentralized exchange (SDEX) with real market rates and path
-                payments for optimal pricing. Real XLM is involved — proceed with caution.
+                <strong>{isTestnet ? "Testnet" : "Mainnet"}:</strong> Exchange rates are fetched live from CoinGecko API. 
+                Conversions use simulated swaps for demo purposes. In production, this would use Stellar's SDEX for real asset swaps.
+                {isTestnet ? " Test XLM has no real value." : " Real XLM is involved — proceed with caution."}
               </p>
             </div>
           </CardContent>

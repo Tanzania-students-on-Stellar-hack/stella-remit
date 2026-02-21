@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Briq SMS Integration</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+            display: none;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Test Briq SMS Integration</h1>
+        
+        <div class="info">
+            <strong>Note:</strong> This is a test page to verify your Briq SMS integration is working correctly.
+        </div>
+
+        <form id="testForm">
+            <div class="form-group">
+                <label for="phone">Phone Number (with country code)</label>
+                <input type="tel" id="phone" value="+255683859574" required>
+            </div>
+
+            <div class="form-group">
+                <label for="poolName">Pool Name</label>
+                <input type="text" id="poolName" value="Test Savings Pool" required>
+            </div>
+
+            <div class="form-group">
+                <label for="poolAddress">Pool Address</label>
+                <input type="text" id="poolAddress" value="GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" required>
+            </div>
+
+            <div class="form-group">
+                <label for="target">Target Amount (XLM)</label>
+                <input type="number" id="target" value="500" required>
+            </div>
+
+            <div class="form-group">
+                <label for="contribution">Contribution Amount (XLM)</label>
+                <input type="number" id="contribution" value="10" required>
+            </div>
+
+            <div class="form-group">
+                <label for="members">Number of Members</label>
+                <input type="number" id="members" value="5" required>
+            </div>
+
+            <button type="submit" id="submitBtn">Send Test SMS</button>
+        </form>
+
+        <div id="result" class="result"></div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://mioqbrpfznxxnbvznpfm.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1pb3FicnBmem54eG5idnpucGZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA5MjIwNTQsImV4cCI6MjA4NjQ5ODA1NH0.lwOU9swAWTlDfFBLxwa3Vk8WPJVjtWegNDL8Z-u0Oag';
+
+        document.getElementById('testForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById('submitBtn');
+            const resultDiv = document.getElementById('result');
+            
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Sending...';
+            resultDiv.style.display = 'none';
+
+            const data = {
+                phoneNumbers: [document.getElementById('phone').value],
+                poolName: document.getElementById('poolName').value,
+                poolAddress: document.getElementById('poolAddress').value,
+                targetAmount: document.getElementById('target').value,
+                contributionAmount: document.getElementById('contribution').value,
+                memberCount: document.getElementById('members').value
+            };
+
+            try {
+                const response = await fetch(`${SUPABASE_URL}/functions/v1/send-pool-invitation`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${SUPABASE_KEY}`
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    resultDiv.className = 'result success';
+                    resultDiv.innerHTML = `
+                        <strong>✅ Success!</strong><br>
+                        SMS sent successfully to ${data.phoneNumbers[0]}<br>
+                        <pre>${JSON.stringify(result, null, 2)}</pre>
+                    `;
+                } else {
+                    throw new Error(result.error || 'Unknown error');
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `
+                    <strong>❌ Error!</strong><br>
+                    ${error.message}<br><br>
+                    <small>Check console for details</small>
+                `;
+                console.error('Error:', error);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Send Test SMS';
+                resultDiv.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>

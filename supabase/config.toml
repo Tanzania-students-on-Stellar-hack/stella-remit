@@ -1,4 +1,4 @@
-project_id = "mioqbrpfznxxnbvznpfm"
+project_id = "zzvkbxdaayhbytcshwrs"
 
 [functions.create-wallet]
 verify_jwt = false
@@ -10,4 +10,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.release-escrow]
+verify_jwt = false
+
+[functions.send-pool-invitation]
 verify_jwt = false

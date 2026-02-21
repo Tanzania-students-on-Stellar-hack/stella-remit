@@ -32,12 +32,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = async (userId: string) => {
-    const { data } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("user_id", userId)
-      .single();
-    if (data) setProfile(data as Profile);
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("user_id", userId)
+        .single();
+      
+      if (error) {
+        console.error("Profile fetch error:", error);
+        // If profile doesn't exist, it will be created by the trigger on next auth event
+        // or we can create it manually here
+        if (error.code === 'PGRST116') {
+          console.log("Profile not found, will be created automatically");
+        }
+        return;
+      }
+      
+      if (data) setProfile(data as Profile);
+    } catch (err) {
+      console.error("Failed to fetch profile:", err);
+    }
   };
 
   const refreshProfile = async () => {
