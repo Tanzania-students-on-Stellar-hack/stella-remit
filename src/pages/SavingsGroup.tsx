@@ -143,34 +143,76 @@ export default function SavingsGroup() {
 
     console.log("Sending emails to:", validEmails);
 
-    // Use Supabase Auth to send magic link emails with pool info
-    for (const email of validEmails) {
-      try {
-        const { error } = await supabase.auth.signInWithOtp({
-          email: email,
-          options: {
-            emailRedirectTo: `${window.location.origin}/savings-group`,
-            data: {
-              pool_name: poolData.name,
-              pool_address: poolData.poolAddress,
-              target_amount: poolData.target,
-              contribution_amount: poolData.contribution,
-            },
-          },
-        });
+    try {
+      const response = await fetch('http://localhost:3001/send-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          emails: validEmails,
+          poolName: poolData.name,
+          poolAddress: poolData.poolAddress,
+          targetAmount: poolData.target,
+          contributionAmount: poolData.contribution,
+          memberCount: poolData.members,
+        }),
+      });
 
-        if (error) {
-          console.error(`Email error for ${email}:`, error);
+      const data = await response.json();
+      console.log('Email response:', data);
+
+      if (response.ok && data.success) {
+        // Check if any emails actually sent
+        const successCount = data.results?.filter((r: any) => r.success).length || 0;
+        const failCount = data.results?.length - successCount || 0;
+        
+        if (successCount > 0) {
+          toast({
+            title: "Email invitations sent!",
+            description: `Sent ${successCount} email(s)${failCount > 0 ? `, ${failCount} failed` : ''}`,
+          });
+        } else {
+          // All failed - show error
+          const firstError = data.results?.[0]?.error;
+          let errorMsg = "Failed to send emails";
+          
+          if (firstError) {
+            console.error("Email error details:", firstError);
+            if (typeof firstError === 'string') {
+              try {
+                const parsed = JSON.parse(firstError);
+                errorMsg = parsed.message || errorMsg;
+              } catch (e) {
+                errorMsg = firstError;
+              }
+            } else if (firstError.error) {
+              try {
+                const parsed = JSON.parse(firstError.error);
+                errorMsg = parsed.message || errorMsg;
+              } catch (e) {
+                errorMsg = firstError.error;
+              }
+            }
+          }
+          
+          toast({
+            title: "Email sending failed",
+            description: errorMsg,
+            variant: "destructive",
+          });
         }
-      } catch (err) {
-        console.error(`Failed to send email to ${email}:`, err);
+      } else {
+        throw new Error(data.error || 'Failed to send emails');
       }
+    } catch (emailError: any) {
+      console.error("Email error:", emailError);
+      toast({
+        title: "Email sending failed",
+        description: emailError.message || "Could not send email invitations. Make sure email server is running (node email-server.js)",
+        variant: "destructive",
+      });
     }
-
-    toast({
-      title: "Email invitations sent!",
-      description: `Sent ${validEmails.length} email invitation(s)`,
-    });
   };
 
   const handleCreatePool = async () => {
@@ -744,86 +786,78 @@ export default function SavingsGroup() {
             </CardContent>
           </Card>
 
-          {savingsPool && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <PiggyBank className="h-5 w-5" />
-                  {savingsPool.name}
-                </CardTitle>
-                <CardDescription>
-                  Pool details and actions
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="p-4 bg-muted rounded-lg space-y-2">
+        </div>
+
+        {savingsPool && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <PiggyBank className="h-5 w-5" />
+                {savingsPool.name}
+              </CardTitle>
+              <CardDescription>
+                Pool details and actions
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="p-4 bg-muted rounded-lg space-y-2">
+                <div>
+                  <span className="text-sm text-muted-foreground">Pool Address</span>
+                  <p className="font-mono text-xs break-all">{savingsPool.poolAddress}</p>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <span className="text-sm text-muted-foreground">Pool Address</span>
-                    <p className="font-mono text-xs break-all">{savingsPool.poolAddress}</p>
+                    <span className="text-sm text-muted-foreground">Current Balance</span>
+                    <p className="font-semibold text-lg">{savingsPool.currentBalance} XLM</p>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <span className="text-sm text-muted-foreground">Current Balance</span>
-                      <p className="font-semibold text-lg">{savingsPool.currentBalance} XLM</p>
-                    </div>
-                    <div>
-                      <span className="text-sm text-muted-foreground">Target Amount</span>
-                      <p className="font-semibold text-lg">{savingsPool.target} XLM</p>
-                    </div>
+                  <div>
+                    <span className="text-sm text-muted-foreground">Target Amount</span>
+                    <p className="font-semibold text-lg">{savingsPool.target} XLM</p>
                   </div>
                 </div>
+              </div>
 
-                <Button onClick={handleContribute} className="w-full">
-                  <Users className="mr-2 h-4 w-4" />
-                  Add Contribution
-                </Button>
+              <Button onClick={handleContribute} className="w-full">
+                <Users className="mr-2 h-4 w-4" />
+                Add Contribution
+              </Button>
 
-                {!savingsPool.useSmartContract && savingsPool.poolSecret && (
-                  <div className="text-xs text-muted-foreground space-y-1 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-800">
-                    <p className="font-semibold text-yellow-700 dark:text-yellow-400">⚠️ Pool Secret Key</p>
-                    <details className="mt-2">
-                      <summary className="cursor-pointer text-yellow-700 dark:text-yellow-400 font-semibold">
-                        Click to reveal
-                      </summary>
-                      <p className="font-mono break-all mt-2 p-2 bg-black/10 rounded text-xs">
-                        {savingsPool.poolSecret}
-                      </p>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="mt-2 w-full"
-                        onClick={() => {
-                          navigator.clipboard.writeText(savingsPool.poolSecret);
-                          toast({ title: "Secret key copied!" });
-                        }}
-                      >
-                        Copy Secret Key
-                      </Button>
-                    </details>
-                  </div>
-                )}
-
-                {savingsPool.useSmartContract && (
-                  <div className="text-xs text-muted-foreground space-y-1 p-3 bg-green-50 dark:bg-green-900/20 rounded border border-green-200 dark:border-green-800">
-                    <p className="font-semibold text-green-700 dark:text-green-400">✅ Smart Contract Protected</p>
-                    <p className="text-green-600 dark:text-green-500">
-                      Funds locked until {savingsPool.unlockDate}
+              {!savingsPool.useSmartContract && savingsPool.poolSecret && (
+                <div className="text-xs text-muted-foreground space-y-1 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-800">
+                  <p className="font-semibold text-yellow-700 dark:text-yellow-400">⚠️ Pool Secret Key</p>
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-yellow-700 dark:text-yellow-400 font-semibold">
+                      Click to reveal
+                    </summary>
+                    <p className="font-mono break-all mt-2 p-2 bg-black/10 rounded text-xs">
+                      {savingsPool.poolSecret}
                     </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="mt-2 w-full"
+                      onClick={() => {
+                        navigator.clipboard.writeText(savingsPool.poolSecret);
+                        toast({ title: "Secret key copied!" });
+                      }}
+                    >
+                      Copy Secret Key
+                    </Button>
+                  </details>
                 </div>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <PiggyBank className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                  <p>Create a pool to start saving</p>
+              )}
+
+              {savingsPool.useSmartContract && (
+                <div className="text-xs text-muted-foreground space-y-1 p-3 bg-green-50 dark:bg-green-900/20 rounded border border-green-200 dark:border-green-800">
+                  <p className="font-semibold text-green-700 dark:text-green-400">✅ Smart Contract Protected</p>
+                  <p className="text-green-600 dark:text-green-500">
+                    Funds locked until {savingsPool.unlockDate}
+                  </p>
                 </div>
               )}
             </CardContent>
           </Card>
-        </div>
+        )}
 
         <Card>
           <CardHeader>
