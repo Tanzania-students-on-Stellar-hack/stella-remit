@@ -1,14 +1,22 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Coins, CheckCircle } from "lucide-react";
+import { Loader2, Coins, CheckCircle, Copy, ExternalLink } from "lucide-react";
 import * as StellarSdk from "@stellar/stellar-sdk";
-import { server, networkPassphrase } from "@/lib/stellar";
+import { server, networkPassphrase, isTestnet } from "@/lib/stellar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 export default function TokenIssuance() {
   const { toast } = useToast();
@@ -17,6 +25,22 @@ export default function TokenIssuance() {
   const [assetCode, setAssetCode] = useState("");
   const [assetLimit, setAssetLimit] = useState("");
   const [issuedAsset, setIssuedAsset] = useState<any>(null);
+  const [issuedTokens, setIssuedTokens] = useState<any[]>([]);
+
+  // Load issued tokens from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('issued_tokens');
+    console.log("Loading issued tokens from localStorage:", saved);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        console.log("Parsed tokens:", parsed);
+        setIssuedTokens(parsed);
+      } catch (error) {
+        console.error("Error parsing issued tokens:", error);
+      }
+    }
+  }, []);
 
   const handleIssueToken = async () => {
     if (!assetCode || assetCode.length > 12) {
@@ -113,14 +137,27 @@ export default function TokenIssuance() {
       issueTx.sign(issuerKeypair);
       const result = await server.submitTransaction(issueTx);
 
-      setIssuedAsset({
+      const newToken = {
         code: assetCode,
         issuer: issuerKeypair.publicKey(),
         distributor: distributorKeypair.publicKey(),
         distributorSecret: distributorKeypair.secret(),
         amount: issueAmount,
         hash: result.hash,
-      });
+        createdAt: new Date().toISOString(),
+      };
+
+      setIssuedAsset(newToken);
+      
+      // Add to list and save to localStorage
+      const updatedTokens = [newToken, ...issuedTokens];
+      setIssuedTokens(updatedTokens);
+      console.log("Saving tokens to localStorage:", updatedTokens);
+      localStorage.setItem('issued_tokens', JSON.stringify(updatedTokens));
+      
+      // Verify it was saved
+      const verified = localStorage.getItem('issued_tokens');
+      console.log("Verified saved data:", verified);
 
       toast({
         title: "Token issued successfully!",
@@ -282,6 +319,75 @@ export default function TokenIssuance() {
             </p>
           </CardContent>
         </Card>
+
+        {issuedTokens.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Your Issued Tokens</CardTitle>
+              <CardDescription>
+                All tokens you've created on {isTestnet ? "Testnet" : "Mainnet"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Asset Code</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Issuer</TableHead>
+                      <TableHead>Distributor</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {issuedTokens.map((token, index) => (
+                      <TableRow key={index}>
+                        <TableCell className="font-semibold">{token.code}</TableCell>
+                        <TableCell>{parseFloat(token.amount).toLocaleString()}</TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {token.issuer.substring(0, 8)}...{token.issuer.substring(token.issuer.length - 4)}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {token.distributor.substring(0, 8)}...{token.distributor.substring(token.distributor.length - 4)}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                navigator.clipboard.writeText(token.distributorSecret);
+                                toast({
+                                  title: "Copied!",
+                                  description: "Distributor secret key copied",
+                                });
+                              }}
+                            >
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                const explorerUrl = isTestnet
+                                  ? `https://stellar.expert/explorer/testnet/asset/${token.code}-${token.issuer}`
+                                  : `https://stellar.expert/explorer/public/asset/${token.code}-${token.issuer}`;
+                                window.open(explorerUrl, '_blank');
+                              }}
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </DashboardLayout>
   );
