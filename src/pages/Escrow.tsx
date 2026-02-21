@@ -32,7 +32,7 @@ interface EscrowRecord {
 }
 
 const Escrow = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [escrows, setEscrows] = useState<EscrowRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -122,16 +122,31 @@ const Escrow = () => {
       const payResult = await server.submitTransaction(createTx);
 
       // Look up recipient
-      const { data: recipientProfile } = await supabase
+      const { data: recipientProfile, error: lookupError } = await supabase
         .from("profiles")
-        .select("user_id")
+        .select("user_id, stellar_public_key")
         .eq("stellar_public_key", recipientKey.trim())
         .maybeSingle();
+
+      console.log("Recipient lookup:", {
+        recipientKey: recipientKey.trim(),
+        recipientProfile,
+        lookupError,
+        foundUser: recipientProfile?.user_id
+      });
+      
+      // Also try to find all profiles to debug
+      const { data: allProfiles } = await supabase
+        .from("profiles")
+        .select("user_id, stellar_public_key")
+        .limit(10);
+      
+      console.log("All profiles in database:", allProfiles);
 
       // Store escrow record
       const { error: insertError } = await supabase.from("escrows").insert({
         creator_id: currentUser.id,
-        recipient_id: recipientProfile?.user_id || currentUser.id,
+        recipient_id: recipientProfile?.user_id || null, // Use null if recipient not found
         recipient_address: recipientKey.trim(), // Store the actual recipient address
         amount: parseFloat(amount),
         asset: "XLM",
@@ -350,7 +365,14 @@ const Escrow = () => {
               <div className="divide-y divide-border">
                 {escrows.map((esc) => {
                   const isCreator = esc.creator_id === user?.id;
-                  const isRecipient = esc.recipient_id === user?.id;
+                  
+                  // Check if current user is recipient by comparing Stellar addresses
+                  const userPublicKey = profile?.stellar_public_key;
+                  const isRecipientByAddress = userPublicKey && esc.recipient_address && 
+                    userPublicKey.toLowerCase() === esc.recipient_address.toLowerCase();
+                  
+                  const isRecipient = esc.recipient_id === user?.id || isRecipientByAddress;
+                  const hasNoRecipientUser = !esc.recipient_id; // Recipient not in system
                   
                   return (
                   <div key={esc.id} className="px-6 py-4 flex items-center gap-4">
@@ -361,7 +383,9 @@ const Escrow = () => {
                         Deadline: {format(new Date(esc.deadline), "MMM d, yyyy h:mm a")}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {isCreator && "You created this"} {isRecipient && "You are the recipient"}
+                        {isCreator && "You created this"} 
+                        {isRecipient && !isCreator && " • You are the recipient"}
+                        {hasNoRecipientUser && !isRecipient && " • Recipient not in system"}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -372,10 +396,15 @@ const Escrow = () => {
                       }`}>
                         {esc.status}
                       </span>
-                      {esc.status === "pending" && isRecipient && (
+                      {esc.status === "pending" && isRecipient && !isCreator && (
                         <Button size="sm" variant="outline" onClick={() => handleRelease(esc.id)}>
                           Release
                         </Button>
+                      )}
+                      {esc.status === "pending" && hasNoRecipientUser && !isRecipient && (
+                        <span className="text-xs text-muted-foreground">
+                          Recipient must log in to release
+                        </span>
                       )}
                     </div>
                   </div>
