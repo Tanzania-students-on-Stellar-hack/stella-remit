@@ -51,6 +51,29 @@ export default function CrossBorderPayment() {
 
     setQuoteLoading(true);
     try {
+      // Validate recipient address format
+      if (!recipientAddress.startsWith('G') || recipientAddress.length !== 56) {
+        throw new Error("Invalid Stellar address. Must start with 'G' and be 56 characters.");
+      }
+
+      // Check if recipient account exists and is funded
+      const { server } = await import("@/lib/stellar");
+      try {
+        await server.loadAccount(recipientAddress);
+        console.log("✅ Recipient account exists and is funded");
+      } catch (error: any) {
+        if (error.response?.status === 404) {
+          toast({
+            title: "Recipient account not found",
+            description: "The recipient account needs to be funded with at least 1 XLM first. On testnet, use Friendbot to fund it.",
+            variant: "destructive",
+          });
+          setQuoteLoading(false);
+          return;
+        }
+        throw error;
+      }
+
       const destAsset = getAsset(destCurrency);
       
       // For demo: if same currency, just do direct payment

@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Shield, Clock, CheckCircle } from "lucide-react";
-import { createSorobanEscrow, releaseSorobanEscrow, ESCROW_CONTRACT_ID } from "@/lib/soroban";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { createSorobanEscrow, releaseSorobanEscrow, getEscrowDetails, getContractCounter, ESCROW_CONTRACT_ID } from "@/lib/soroban";
 import * as StellarSdk from "@stellar/stellar-sdk";
 
 export default function SorobanEscrow() {
@@ -15,7 +16,15 @@ export default function SorobanEscrow() {
   const [recipientAddress, setRecipientAddress] = useState("");
   const [amount, setAmount] = useState("");
   const [hours, setHours] = useState("24");
+  const [timeUnit, setTimeUnit] = useState<"seconds" | "minutes" | "hours" | "days">("hours");
   const [escrowId, setEscrowId] = useState("");
+  const [createdEscrows, setCreatedEscrows] = useState<Array<{
+    id: string;
+    recipient: string;
+    amount: string;
+    deadline: number;
+    txHash: string;
+  }>>([]);
 
   const handleCreateEscrow = async () => {
     if (!recipientAddress || !amount) {
@@ -34,7 +43,17 @@ export default function SorobanEscrow() {
       if (!secretKey) throw new Error("Secret key required");
 
       const sourceKeypair = StellarSdk.Keypair.fromSecret(secretKey);
-      const deadline = Math.floor(Date.now() / 1000) + parseInt(hours) * 3600;
+      
+      // Calculate deadline based on time unit
+      const timeMultipliers = {
+        seconds: 1,
+        minutes: 60,
+        hours: 3600,
+        days: 86400,
+      };
+      
+      const durationInSeconds = parseInt(hours) * timeMultipliers[timeUnit];
+      const deadline = Math.floor(Date.now() / 1000) + durationInSeconds;
 
       const result = await createSorobanEscrow(
         sourceKeypair,
@@ -43,10 +62,27 @@ export default function SorobanEscrow() {
         deadline
       );
 
+      // Extract escrow ID from result
+      const newEscrowId = result.result ? StellarSdk.scValToNative(result.result) : "0";
+
+      // Save to local list
+      const newEscrow = {
+        id: newEscrowId.toString(),
+        recipient: recipientAddress,
+        amount: amount,
+        deadline: deadline,
+        txHash: result.hash,
+      };
+      setCreatedEscrows([newEscrow, ...createdEscrows]);
+
       toast({
         title: "Escrow created!",
-        description: `Transaction hash: ${result.hash}`,
+        description: `Escrow ID: ${newEscrowId} | TX: ${result.hash.substring(0, 10)}...`,
+        duration: 10000,
       });
+
+      // Show escrow ID prominently
+      alert(`✅ Escrow Created Successfully!\n\nEscrow ID: ${newEscrowId}\n\nSave this ID! The recipient needs it to release the funds after the deadline.\n\nTransaction: ${result.hash}`);
 
       setRecipientAddress("");
       setAmount("");
@@ -72,10 +108,18 @@ export default function SorobanEscrow() {
 
     setLoading(true);
     try {
-      const secretKey = prompt("Enter your Stellar secret key:");
+      const secretKey = prompt("Enter your Stellar secret key (starts with 'S'):");
       if (!secretKey) throw new Error("Secret key required");
 
+      if (!secretKey.startsWith('S')) {
+        throw new Error("Invalid secret key. Secret keys start with 'S', not 'G'.");
+      }
+
       const sourceKeypair = StellarSdk.Keypair.fromSecret(secretKey);
+      
+      console.log("Attempting to release escrow ID:", escrowId);
+      console.log("Using account:", sourceKeypair.publicKey());
+      console.log("Check transaction on Stellar Expert after submission");
 
       const result = await releaseSorobanEscrow(sourceKeypair, escrowId);
 
@@ -84,12 +128,33 @@ export default function SorobanEscrow() {
         description: `Transaction hash: ${result.hash}`,
       });
 
+      // Show link to transaction
+      console.log(`View transaction: https://stellar.expert/explorer/testnet/tx/${result.hash}`);
+
       setEscrowId("");
     } catch (error: any) {
+      console.error("Release error:", error);
+      
+      let errorMessage = error.message;
+      
+      // Parse common errors from the event log
+      if (errorMessage.includes("Deadline not reached") || errorMessage.includes("time_check")) {
+        errorMessage = "❌ Cannot release yet - the deadline has not passed.\n\nCheck the 'Your Created Escrows' section to see when it can be released.";
+      } else if (errorMessage.includes("Escrow not found") || errorMessage.includes("escrow_not_found")) {
+        errorMessage = `❌ Escrow ID ${escrowId} not found in the contract.\n\nMake sure:\n• The escrow was created successfully\n• You're using the correct ID\n• The contract storage persisted`;
+      } else if (errorMessage.includes("already released") || errorMessage.includes("already_released")) {
+        errorMessage = "❌ This escrow has already been released.";
+      } else if (errorMessage.includes("UnreachableCodeReached")) {
+        errorMessage = `❌ Release failed. Common reasons:\n\n• Escrow ID ${escrowId} doesn't exist\n• You're not the recipient\n• Deadline hasn't passed yet\n• Escrow already released\n\nTip: Create a new escrow with a short deadline (30 seconds) to test immediately!`;
+      } else if (errorMessage.includes("require_auth")) {
+        errorMessage = "❌ Authorization failed. You must be the recipient to release this escrow.";
+      }
+      
       toast({
         title: "Error",
-        description: error.message,
+        description: errorMessage,
         variant: "destructive",
+        duration: 10000,
       });
     } finally {
       setLoading(false);
@@ -123,9 +188,6 @@ export default function SorobanEscrow() {
                     <li>Deploy to testnet (see DEPLOY_SOROBAN_NOW.md)</li>
                     <li>Update contract ID in src/lib/soroban.ts</li>
                   </ol>
-                  <p className="mt-3 pt-3 border-t border-yellow-300 dark:border-yellow-700">
-                    <strong>For hackathon demo:</strong> Focus on the Cross-Border Payment feature at <code className="bg-yellow-100 dark:bg-yellow-900 px-1 rounded">/cross-border</code> - it works perfectly without Soroban deployment!
-                  </p>
                 </div>
               </CardDescription>
             </CardHeader>
@@ -167,14 +229,30 @@ export default function SorobanEscrow() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="hours">Lock Duration (hours)</Label>
-                <Input
-                  id="hours"
-                  type="number"
-                  placeholder="24"
-                  value={hours}
-                  onChange={(e) => setHours(e.target.value)}
-                />
+                <Label htmlFor="hours">Lock Duration</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    id="hours"
+                    type="number"
+                    placeholder="24"
+                    value={hours}
+                    onChange={(e) => setHours(e.target.value)}
+                  />
+                  <Select value={timeUnit} onValueChange={(value: any) => setTimeUnit(value)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="seconds">Seconds</SelectItem>
+                      <SelectItem value="minutes">Minutes</SelectItem>
+                      <SelectItem value="hours">Hours</SelectItem>
+                      <SelectItem value="days">Days</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  For testing, use seconds or minutes
+                </p>
               </div>
 
               <Button
@@ -217,6 +295,18 @@ export default function SorobanEscrow() {
                   value={escrowId}
                   onChange={(e) => setEscrowId(e.target.value)}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Enter the Escrow ID provided by the creator
+                </p>
+              </div>
+
+              <div className="p-3 bg-muted rounded-lg text-sm space-y-1">
+                <p className="font-semibold">Requirements to release:</p>
+                <ul className="list-disc list-inside text-muted-foreground space-y-1">
+                  <li>You must be the recipient</li>
+                  <li>The deadline must have passed</li>
+                  <li>Escrow must not be already released</li>
+                </ul>
               </div>
 
               <Button
@@ -240,6 +330,63 @@ export default function SorobanEscrow() {
             </CardContent>
           </Card>
         </div>
+
+        {createdEscrows.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Your Created Escrows</CardTitle>
+              <CardDescription>
+                Share the Escrow ID with the recipient so they can release funds after the deadline
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {createdEscrows.map((escrow) => (
+                  <div key={escrow.id} className="p-4 border rounded-lg space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-semibold text-lg">Escrow ID: {escrow.id}</div>
+                        <div className="text-sm text-muted-foreground">
+                          Amount: {escrow.amount} XLM
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          Recipient: {escrow.recipient.substring(0, 10)}...{escrow.recipient.substring(escrow.recipient.length - 6)}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          Deadline: {new Date(escrow.deadline * 1000).toLocaleString()}
+                        </div>
+                        <div className={`text-sm font-semibold ${
+                          Date.now() / 1000 >= escrow.deadline ? "text-green-600" : "text-orange-600"
+                        }`}>
+                          {Date.now() / 1000 >= escrow.deadline 
+                            ? "✓ Can be released now" 
+                            : `⏳ Can be released in ${Math.ceil((escrow.deadline - Date.now() / 1000) / 60)} minutes`
+                          }
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          navigator.clipboard.writeText(escrow.id);
+                          toast({
+                            title: "Copied!",
+                            description: "Escrow ID copied to clipboard",
+                          });
+                        }}
+                      >
+                        Copy ID
+                      </Button>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      TX: {escrow.txHash.substring(0, 20)}...
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>

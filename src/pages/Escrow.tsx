@@ -21,11 +21,14 @@ interface EscrowRecord {
   id: string;
   creator_id: string;
   recipient_id: string;
+  recipient_address?: string; // Optional for backward compatibility
+  escrow_public_key?: string;
   amount: number;
   asset: string;
   status: string;
   deadline: string;
   created_at: string;
+  tx_hashes?: any[];
 }
 
 const Escrow = () => {
@@ -64,17 +67,86 @@ const Escrow = () => {
 
     setCreating(true);
     try {
-      const { data, error } = await supabase.functions.invoke("create-escrow", {
-        body: {
-          recipient_address: recipientKey.trim(),
-          amount: amount.trim(),
-          deadline,
-          asset: "XLM",
-        },
+      // Get user's secret key
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) throw new Error("Not authenticated");
+
+      let secretKey = localStorage.getItem(`stellar_secret_${currentUser.id}`);
+      
+      if (!secretKey) {
+        secretKey = prompt("Enter your Stellar secret key (starts with 'S'):");
+        if (!secretKey) throw new Error("Secret key required");
+      }
+
+      if (!secretKey.startsWith('S')) {
+        throw new Error("Invalid secret key. Secret keys start with 'S'.");
+      }
+
+      // Import Stellar SDK
+      const { Keypair, TransactionBuilder, Operation, Asset, Memo } = await import("@stellar/stellar-sdk");
+      const { server, networkPassphrase } = await import("@/lib/stellar");
+
+      // Validate recipient account exists
+      try {
+        await server.loadAccount(recipientKey.trim());
+      } catch (error: any) {
+        if (error.response?.status === 404) {
+          throw new Error("Recipient account not found. The account needs to be funded first.");
+        }
+        throw error;
+      }
+
+      const creatorKeypair = Keypair.fromSecret(secretKey);
+      
+      // Create escrow keypair
+      const escrowKeypair = Keypair.random();
+      
+      const creatorAccount = await server.loadAccount(creatorKeypair.publicKey());
+      const fee = await server.fetchBaseFee();
+      const escrowFundAmount = (parseFloat(amount) + 2).toFixed(7);
+
+      // Create and fund escrow account
+      const createTx = new TransactionBuilder(creatorAccount, {
+        fee: fee.toString(),
+        networkPassphrase: networkPassphrase,
+      })
+        .addOperation(Operation.createAccount({
+          destination: escrowKeypair.publicKey(),
+          startingBalance: escrowFundAmount,
+        }))
+        .addMemo(Memo.text("Escrow deposit"))
+        .setTimeout(30)
+        .build();
+
+      createTx.sign(creatorKeypair);
+      const payResult = await server.submitTransaction(createTx);
+
+      // Look up recipient
+      const { data: recipientProfile } = await supabase
+        .from("profiles")
+        .select("user_id")
+        .eq("stellar_public_key", recipientKey.trim())
+        .maybeSingle();
+
+      // Store escrow record
+      const { error: insertError } = await supabase.from("escrows").insert({
+        creator_id: currentUser.id,
+        recipient_id: recipientProfile?.user_id || currentUser.id,
+        recipient_address: recipientKey.trim(), // Store the actual recipient address
+        amount: parseFloat(amount),
+        asset: "XLM",
+        status: "pending",
+        deadline: new Date(deadline).toISOString(),
+        escrow_public_key: escrowKeypair.publicKey(),
+        tx_hashes: [payResult.hash],
       });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      toast.success("Escrow created!");
+
+      if (insertError) throw insertError;
+
+      // Store escrow secret for later release (in production, use secure vault)
+      localStorage.setItem(`escrow_secret_${escrowKeypair.publicKey()}`, escrowKeypair.secret());
+
+      toast.success("Escrow created! Funds are locked until recipient releases.");
       setRecipientKey("");
       setAmount("");
       setDeadline("");
@@ -87,15 +159,122 @@ const Escrow = () => {
 
   const handleRelease = async (escrowId: string) => {
     try {
-      const { data, error } = await supabase.functions.invoke("release-escrow", {
-        body: { escrow_id: escrowId },
+      // Get escrow details
+      const { data: escrow, error: escrowError } = await supabase
+        .from("escrows")
+        .select("*")
+        .eq("id", escrowId)
+        .single();
+
+      if (escrowError || !escrow) throw new Error("Escrow not found");
+      if (escrow.status !== "pending") throw new Error("Escrow is not pending");
+
+      // Get recipient's secret key
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) throw new Error("Not authenticated");
+      if (escrow.recipient_id !== currentUser.id) throw new Error("Only recipient can release");
+
+      // Get recipient's Stellar address from escrow record
+      let recipientAddress = escrow.recipient_address;
+      
+      console.log("Escrow data:", {
+        escrow_id: escrow.id,
+        recipient_id: escrow.recipient_id,
+        recipient_address: escrow.recipient_address,
+        current_user: currentUser.id
       });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      toast.success("Escrow released!");
+      
+      // Fallback: if old escrow without recipient_address, look it up from profile
+      if (!recipientAddress) {
+        console.log("No recipient_address in escrow, looking up from profile...");
+        
+        const { data: recipientProfile, error: profileError } = await supabase
+          .from("profiles")
+          .select("stellar_public_key")
+          .eq("user_id", escrow.recipient_id)
+          .single();
+        
+        console.log("Profile lookup result:", { recipientProfile, profileError });
+        
+        if (profileError || !recipientProfile?.stellar_public_key) {
+          throw new Error("Recipient address not found. The recipient needs to create a wallet first, or create a new escrow.");
+        }
+        
+        recipientAddress = recipientProfile.stellar_public_key;
+        console.log("Using recipient address from profile:", recipientAddress);
+      } else {
+        console.log("Using recipient address from escrow:", recipientAddress);
+      }
+
+      // Get escrow secret from localStorage
+      const escrowSecret = localStorage.getItem(`escrow_secret_${escrow.escrow_public_key}`);
+      if (!escrowSecret) {
+        throw new Error("Escrow secret not found. The creator needs to provide it.");
+      }
+
+      // Import Stellar SDK
+      const { Keypair, TransactionBuilder, Operation, Asset, Memo } = await import("@stellar/stellar-sdk");
+      const { server, networkPassphrase } = await import("@/lib/stellar");
+
+      const escrowKeypair = Keypair.fromSecret(escrowSecret);
+
+      // Load escrow account
+      const escrowAccount = await server.loadAccount(escrowKeypair.publicKey());
+      const fee = await server.fetchBaseFee();
+
+      // Build transaction to release funds from escrow to recipient
+      const releaseTx = new TransactionBuilder(escrowAccount, {
+        fee: fee.toString(),
+        networkPassphrase: networkPassphrase,
+      })
+        .addOperation(Operation.payment({
+          destination: recipientAddress, // Use the recipient address (from record or profile)
+          asset: Asset.native(),
+          amount: escrow.amount.toString(),
+        }))
+        .addMemo(Memo.text("Escrow release"))
+        .setTimeout(30)
+        .build();
+
+      releaseTx.sign(escrowKeypair);
+      
+      console.log("Submitting release transaction...");
+      const result = await server.submitTransaction(releaseTx);
+      console.log("Transaction successful:", result.hash);
+
+      // Update escrow status
+      const txHashes = [...(escrow.tx_hashes || []), result.hash];
+      await supabase
+        .from("escrows")
+        .update({ status: "released", tx_hashes: txHashes })
+        .eq("id", escrowId);
+
+      // Record transaction
+      await supabase.from("transactions").insert({
+        sender_id: escrow.creator_id,
+        receiver_id: escrow.recipient_id,
+        amount: escrow.amount,
+        asset: escrow.asset,
+        memo: "Escrow release",
+        tx_hash: result.hash,
+        status: "completed",
+      });
+
+      toast.success(`Escrow released! TX: ${result.hash.substring(0, 10)}...`);
       await fetchEscrows();
     } catch (err: any) {
-      toast.error(err.message || "Failed to release escrow");
+      console.error("Release error:", err);
+      
+      // Better error messages
+      let errorMessage = err.message || "Failed to release escrow";
+      
+      if (err.response?.data?.extras?.result_codes) {
+        const codes = err.response.data.extras.result_codes;
+        console.error("Stellar error codes:", codes);
+        errorMessage = `Transaction failed: ${codes.transaction || codes.operations?.[0] || 'Unknown error'}`;
+      }
+      
+      toast.error(errorMessage);
     }
   };
 
@@ -169,13 +348,20 @@ const Escrow = () => {
               <div className="py-8 text-center text-muted-foreground">No escrows yet</div>
             ) : (
               <div className="divide-y divide-border">
-                {escrows.map((esc) => (
+                {escrows.map((esc) => {
+                  const isCreator = esc.creator_id === user?.id;
+                  const isRecipient = esc.recipient_id === user?.id;
+                  
+                  return (
                   <div key={esc.id} className="px-6 py-4 flex items-center gap-4">
                     {statusIcon(esc.status)}
                     <div className="flex-1">
                       <div className="text-sm font-medium font-sans">{esc.amount} {esc.asset}</div>
                       <div className="text-xs text-muted-foreground">
                         Deadline: {format(new Date(esc.deadline), "MMM d, yyyy h:mm a")}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {isCreator && "You created this"} {isRecipient && "You are the recipient"}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -186,14 +372,15 @@ const Escrow = () => {
                       }`}>
                         {esc.status}
                       </span>
-                      {esc.status === "pending" && esc.recipient_id === user?.id && (
+                      {esc.status === "pending" && isRecipient && (
                         <Button size="sm" variant="outline" onClick={() => handleRelease(esc.id)}>
                           Release
                         </Button>
                       )}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>

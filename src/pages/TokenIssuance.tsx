@@ -30,10 +30,25 @@ export default function TokenIssuance() {
 
     setLoading(true);
     try {
-      const secretKey = prompt("Enter your Stellar secret key:");
+      const secretKey = prompt("Enter your Stellar secret key (starts with 'S'):");
       if (!secretKey) throw new Error("Secret key required");
 
-      const issuerKeypair = StellarSdk.Keypair.fromSecret(secretKey);
+      const trimmedKey = secretKey.trim();
+      
+      if (!trimmedKey.startsWith('S')) {
+        throw new Error("Invalid secret key. Secret keys start with 'S', not 'G'. You entered a public key.");
+      }
+      
+      if (trimmedKey.length !== 56) {
+        throw new Error(`Invalid secret key length. Expected 56 characters, got ${trimmedKey.length}.`);
+      }
+
+      let issuerKeypair;
+      try {
+        issuerKeypair = StellarSdk.Keypair.fromSecret(trimmedKey);
+      } catch (err: any) {
+        throw new Error(`Invalid secret key format: ${err.message}`);
+      }
       const distributorKeypair = StellarSdk.Keypair.random();
 
       // Fund distributor account

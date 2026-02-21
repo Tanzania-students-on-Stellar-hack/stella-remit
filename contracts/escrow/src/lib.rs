@@ -60,19 +60,31 @@ impl EscrowContract {
     /// Release escrow to recipient
     pub fn release(env: Env, escrow_id: u64, token_address: Address) {
         let key = DataKey::Escrow(escrow_id);
-        let mut escrow: Escrow = env.storage().instance().get(&key)
-            .expect("Escrow not found");
+        
+        // Try to get escrow, panic with clear message if not found
+        let escrow_option: Option<Escrow> = env.storage().instance().get(&key);
+        
+        if escrow_option.is_none() {
+            // Log for debugging
+            env.events().publish(("escrow_not_found",), escrow_id);
+            panic!("Escrow not found");
+        }
+        
+        let mut escrow = escrow_option.unwrap();
 
         // Only recipient can release
         escrow.recipient.require_auth();
 
         // Check if already released
         if escrow.released {
+            env.events().publish(("already_released",), escrow_id);
             panic!("Escrow already released");
         }
 
         // Check deadline
         let current_time = env.ledger().timestamp();
+        env.events().publish(("time_check",), (current_time, escrow.deadline));
+        
         if current_time < escrow.deadline {
             panic!("Deadline not reached");
         }
@@ -88,6 +100,8 @@ impl EscrowContract {
         // Mark as released
         escrow.released = true;
         env.storage().instance().set(&key, &escrow);
+        
+        env.events().publish(("escrow_released",), escrow_id);
     }
 
     /// Refund escrow to creator (if deadline passed and not released)
@@ -124,9 +138,15 @@ impl EscrowContract {
     }
 
     /// Get escrow details
-    pub fn get_escrow(env: Env, escrow_id: u64) -> Escrow {
+    pub fn get_escrow(env: Env, escrow_id: u64) -> Option<Escrow> {
         let key = DataKey::Escrow(escrow_id);
-        env.storage().instance().get(&key).expect("Escrow not found")
+        env.storage().instance().get(&key)
+    }
+    
+    /// Get current counter value (for debugging)
+    pub fn get_counter(env: Env) -> u64 {
+        let counter_key = DataKey::Counter;
+        env.storage().instance().get(&counter_key).unwrap_or(0)
     }
 }
 

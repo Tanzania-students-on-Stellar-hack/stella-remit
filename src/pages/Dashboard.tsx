@@ -248,12 +248,52 @@ const Dashboard = () => {
             {/* Wallet Info */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm font-sans">Wallet Address</CardTitle>
+                <CardTitle className="text-sm font-sans">Wallet Information</CardTitle>
               </CardHeader>
-              <CardContent>
-                <code className="text-xs bg-muted px-3 py-2 rounded block break-all">
-                  {profile.stellar_public_key}
-                </code>
+              <CardContent className="space-y-4">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Public Address (Share this to receive payments)</label>
+                  <code className="text-xs bg-muted px-3 py-2 rounded block break-all">
+                    {profile.stellar_public_key}
+                  </code>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Secret Key (Never share this!)</label>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        const secretKey = localStorage.getItem(`stellar_secret_${profile?.user_id}`);
+                        if (secretKey) {
+                          navigator.clipboard.writeText(secretKey);
+                          toast.success("Secret key copied to clipboard!");
+                        } else {
+                          toast.error("Secret key not found. You may have imported this wallet.");
+                        }
+                      }}
+                    >
+                      Copy Secret Key
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        const secretKey = localStorage.getItem(`stellar_secret_${profile?.user_id}`);
+                        if (secretKey) {
+                          alert(`Your Secret Key:\n\n${secretKey}\n\n⚠️ NEVER share this with anyone!\n⚠️ Anyone with this key can access your funds!`);
+                        } else {
+                          toast.error("Secret key not found. You may have imported this wallet.");
+                        }
+                      }}
+                    >
+                      View Secret Key
+                    </Button>
+                  </div>
+                  <p className="text-xs text-red-600 mt-2">
+                    ⚠️ Keep your secret key safe! Anyone with this key can access your funds.
+                  </p>
+                </div>
               </CardContent>
             </Card>
           </>
